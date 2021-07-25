@@ -1,0 +1,16 @@
+{
+  "name": "shizukana",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "repository": "git@github.com:InvisibleFuture/shizukana.git",
+  "author": "satori <huan0016@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.17.1",
+    "express-session": "^1.17.2",
+    "express-ws": "^5.0.2",
+    "formidable": "^1.2.2",
+    "nedb": "^1.8.0"
+  }
+}
