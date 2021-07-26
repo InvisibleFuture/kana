@@ -24,7 +24,7 @@ const db = (name) => (databases.get(name) || function(){
   return database
 }())
 
-// 缓存: 自动构建 ws 列表
+// 通道: 自动构建 ws 列表
 const wsstores  = new Map()
 const wsstore = name => (wsstores.get(name) || function() {
   let list = new Map()
@@ -77,23 +77,17 @@ app.use('/attach', online, admin)
 app.use('/like', online, admin)
 app.use('/data/file/', express.static('data/file'))
 
+// 列表计量
 const count_load = async function(name, query) {
-  await new Promise(resolve => db(name).count(query, function(err, count) {
-    resolve(count)
-  }))
+  await new Promise(resolve => db(name).count(query, (err, count) => resolve(count)))
 }
 
+// 条件查询
 const list_load = async function(name, query) {
   await new Promise(resolve => db(name).find(query, function(err, docs) {
     let list = []
     for (let doc of docs) list.push({_id: doc.id})
     resolve(list)
-  }))
-}
-
-const count_user = async function(query) {
-  await new Promise(resolve => db('account').count(query, function(err, count) {
-    resolve(count)
   }))
 }
 
@@ -109,17 +103,17 @@ app.route('/account').get(online, function(req, res, next) {
     account.salt = random(32)
     account.password = md5(password + account.salt)
   }
-  if (!account.name) account.name = random(12)       // 允许用户名登录则不可重复
-  if (!account.avatar) account.avatar = ''           // default avatar
-  if (await count_user({}) === 0) account.gid = 1    // 第一个用户默认是管理员
-  db('account').insert(account, function(err, doc) { // 注册账户
+  if (!account.name) account.name = random(12)               // 允许用户名登录则不可重复
+  if (!account.avatar) account.avatar = ''                   // default avatar
+  if (await count_load('account', {}) === 0) account.gid = 1 // 第一个用户默认是管理员
+  db('account').insert(account, function(err, doc) {         // 注册账户
     doc ? res.json(doc) : res.status(400).send('创建失败')
   })
 }).patch(online, function(req, res, next) {
   // 修改当前账户
 }).delete(online, function(req, res, next) {
   // 注销当前账户 (将逐步删除所有库中此uid的数据)
-  if (req.session.account.gid === 1 && await count_user({gid: 1}) === 1) {
+  if (req.session.account.gid === 1 && await count_load('account', {gid: 1}) === 1) {
     return res.status(400).send('不可以删除唯一的管理员账户')
   }
   // TODO: 注意需要清空所有库中此uid的记录
@@ -141,7 +135,7 @@ app.route('/account/:id').get(function(req, res, next) {
   if (req.session.account.gid !== 1 && req.session.account.uid !== req.params.id) {
     return res.status(400).send('没有权限删除此账户')
   }
-  if (await count_user({_id: req.params.id, gid: 1}) === 1) {
+  if (await count_load('account', {_id: req.params.id, gid: 1}) === 1) {
     return res.status(400).send('不可以删除唯一的管理员账户')
   }
   db('account').remove({_id: req.params.id}, function(err, count) {
