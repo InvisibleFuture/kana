@@ -15,7 +15,7 @@ array-flatten@1.1.1:
   resolved "https://registry.yarnpkg.com/array-flatten/-/array-flatten-1.1.1.tgz#9a5f699051b1e7073328f2a008968b64ea2955d2"
   integrity sha1-ml9pkFGx5wczKPKgCJaLZOopVdI=
 
-async@0.2.10:
+async@0.2.10, async@~0.2.8:
   version "0.2.10"
   resolved "https://registry.yarnpkg.com/async/-/async-0.2.10.tgz#b6bbe0b0674b9d719708ca38de8c237cb526c3d1"
   integrity sha1-trvgsGdLnXGXCMo43owjfLUmw9E=
@@ -47,6 +47,13 @@ bytes@3.1.0:
   version "3.1.0"
   resolved "https://registry.yarnpkg.com/bytes/-/bytes-3.1.0.tgz#f6cf7933a360e0588fa9fde85651cdc7f805d1f6"
   integrity sha512-zauLjrfCG+xvoyaqLoV8bLVXXNGC4JqlxFCutSDWA6fJrTo2ZuvLYTqZ7aHBLZSMOopbzwv8f+wZcVzfVTI2Dg==
+
+connect-nedb-session@^0.0.3:
+  version "0.0.3"
+  resolved "https://registry.yarnpkg.com/connect-nedb-session/-/connect-nedb-session-0.0.3.tgz#e10f642d3d604f609bb23a450021dd1f0579c5ac"
+  integrity sha1-4Q9kLT1gT2CbsjpFACHdHwV5xaw=
+  dependencies:
+    nedb "0.0.6"
 
 content-disposition@0.5.3:
   version "0.5.3"
@@ -265,6 +272,11 @@ localforage@^1.3.0:
   dependencies:
     lie "3.1.1"
 
+md5-node@^1.0.1:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/md5-node/-/md5-node-1.0.1.tgz#0e22d009d46bdc95b1d3c5e8c8feddc1a5c3aa88"
+  integrity sha1-DiLQCdRr3JWx08XoyP7dwaXDqog=
+
 media-typer@0.3.0:
   version "0.3.0"
   resolved "https://registry.yarnpkg.com/media-typer/-/media-typer-0.3.0.tgz#8710d7af0aa626f8fffa1ce00168545263255748"
@@ -318,6 +330,14 @@ ms@2.1.1:
   version "2.1.1"
   resolved "https://registry.yarnpkg.com/ms/-/ms-2.1.1.tgz#30a5864eb3ebb0a66f2ebe6d727af06a09d86e0a"
   integrity sha512-tgp+dl5cGk28utYktBsrFqA7HKgrhgPsg6Z/EfhWI4gl1Hwq8B/GmY/0oXZ6nF8hDVesS/FpnYaD/kOWhYQvyg==
+
+nedb@0.0.6:
+  version "0.0.6"
+  resolved "https://registry.yarnpkg.com/nedb/-/nedb-0.0.6.tgz#a2e6c02cb2fcacf91245b02431f44cf1664aa85f"
+  integrity sha1-oubALLL8rPkSRbAkMfRM8WZKqF8=
+  dependencies:
+    async "~0.2.8"
+    underscore "~1.4.4"
 
 nedb@^1.8.0:
   version "1.8.0"
@@ -443,6 +463,11 @@ setprototypeof@1.1.1:
   version "1.5.0"
   resolved "https://registry.yarnpkg.com/statuses/-/statuses-1.5.0.tgz#161c7dac177659fd9811f43771fa99381478628c"
   integrity sha1-Fhx9rBd2Wf2YEfQ3cfqZOBR4Yow=
+
+string-random@^0.1.3:
+  version "0.1.3"
+  resolved "https://registry.yarnpkg.com/string-random/-/string-random-0.1.3.tgz#083f39835c2430fe0be76b9e72f0736e2e0f7b74"
+  integrity sha512-g+UsIwzKhNi+9/+Q3Q7hP8R4HkQxiIkQlttnxw6GRdk9pnnkGIv53C6H8dvh8wxAVDhkqpnWeauaPXS1b2sBJg==
 
 toidentifier@1.0.0:
   version "1.0.0"
