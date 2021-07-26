@@ -6,7 +6,6 @@ import connect    from 'connect-nedb-session'
 import random     from 'string-random'
 import formidable from 'formidable'
 import md5        from 'md5-node'
-import { resolve } from 'path/posix'
 
 
 process.on('SIGINT', function() {
@@ -34,9 +33,11 @@ const wsstore = name => (wsstores.get(name) || function() {
   return list
 }())
 
-// 组件: 要求登录
+// 组件: 要求登录 (普通成员路由参数附上uid以分离权限)
 const online = function(req, res, next) {
-  req.session.account ? next() : res.status(401).send('未登录')
+  if (req.session.account) return res.status(401).send('未登录')
+  if (req.session.account.gid != 1) req.params.uid = req.session.account.uid
+  next()
 }
 
 // 组件: 管理权限
@@ -44,25 +45,16 @@ const admin = function(req, res, next) {
   req.session.account.gid === 1 ? next() : res.status(403).send('没有权限')
 }
 
-// 组件: 移除输入非法信息
+// 组件: 移除输入非法信息 (但管理员允许输入)
 const remove = function(req, res, next) {
-  delete req.body._id
-  delete req.body.uid
-  delete req.body.createdAt
-  delete req.body.updatedAt
-  delete req.body.views
-  delete req.body.posts
-  delete req.body.likes
+  if (req.session.account.gid != 1) {
+    let {_id, uid, createdAt, updatedAt, views, posts, likes, ...body} = req.body
+    req.body = body
+  }
   next()
 }
 
 // 组件: 从缓存载入数据
-
-// 组件: 操作权限
-//const authority = function(req, res, next) {
-//  (req.method === 'GET') ? next() : res.status(200).send
-//}
-
 // 组件: 移除输出敏感信息
 
 
@@ -84,24 +76,7 @@ app.use('/account', online, admin)
 app.use('/message', online, admin)
 app.use('/attach', online, admin)
 app.use('/like', online, admin)
-
-// 操作对象必须要登录
-//app.use('/:name', )
-
-// 对象列表
-
-
-// 对象实体
-// 对象附件
-// 对象评论
-// 对象收藏
-// 对象点赞
-
-// 无论在哪一级别的对象, 都是泛型对象, 因此不必二级restful
-// 列表也是对象
-//app.use('/:name', function(req, res, next) {
-  // log
-//})
+app.use('/data/file/', express.static('data/file'))
 
 const count_load = async function(name, query) {
   await new Promise(resolve => db(name).count(query, function(err, count) {
@@ -117,7 +92,8 @@ const list_load = async function(name, query) {
   }))
 }
 
-app.get('/:name', function(req, res, next) {
+// 对象: 对象列表
+app.route('/:name').get(function(req, res, next) {
   if (req.query.tid) req.query.tid = Number(req.query.tid) // 某些查询参数需要转换类型(暂时)
   if (req.query.top) req.query.top = Number(req.query.top) // 某些查询参数需要转换类型(暂时)
   if (req.query.uid || req.query.uid !== req.session?.account?.uid) {
@@ -140,22 +116,15 @@ app.get('/:name', function(req, res, next) {
     }
     res.json(docs)
   })
-})
-
-app.post('/:name', online, remove, function(req, res, next) {
-  req.body.uid    = req.session.account.uid // 默认发布者uid
-  req.body.public = true                    // 默认发表即公开
-  db(req.params.name).insert(req.body, function(err, doc) {
-    doc ? res.json(doc) : res.status(500).send('内部错误')
+}).post(remove, online, function(req, res, next) {
+  db(req.params.name).insert({public:true, ...req.body}, function(err, doc) {
+    doc ? res.json(doc) : res.status(500).send('发布失败')
   })
 })
 
-//app.put('/:name', online, function(req, res, next) {})
-//app.patch('/:name', online, function(req, res, next) {})
-//app.head('/:name', function(req, res, next) {})
-//app.options('/:name', function(req, res, next) {})
-app.get('/:name/:id', function(req, res, next) {
-  db(req.params.name).findOne({_id: req.params.id}, async function(err, doc) {
+// 对象: 对象实体
+app.route('/:name/:_id').get(function(req, res, next) {
+  db(req.params.name).findOne({_id: req.params._id}, async function(err, doc) {
     if (err || !doc) return res.status(404).send('目标资源不存在')
     if (!doc.public && doc.uid !== req.session?.account?.uid) {
       return res.status(403).send('没有权限读取')
@@ -163,30 +132,25 @@ app.get('/:name/:id', function(req, res, next) {
     // 附加用户信息
     if (req.query.user) doc.user = await user_load(doc.uid)
   })
-})
-app.put('/:name/:id', function(req, res, next) {})
-//app.post('/:name/:id', function(req, res, next) {})
-app.patch('/:name/:id', function(req, res, next) {})
-//app.options('/:name/:id', function(req, res, next) {})
-//app.head('/:name/:id', function(req, res, next) {})
-
-app.get('/:name/:id/post', function(req, res, next) {
-  // 获得此对象的所有post记录
-})
-app.get('/:name/:id/like', function(req, res, next) {
-  // 获得此对象的所有like记录
-})
-app.get('/:name/:id/file', function(req, res, next) {
-  // 获得此对象的所有attach记录
+}).put(remove, online, function(req, res, next) {
+  // TODO: 重写对象
+}).patch(remove, online, function(req, res, next) {
+  // TODO: 修改对象
+}).delete(remove, online, function(req, res, next) {
+  // TODO: 先移除依赖数据 like post...
+  let {name, ...query} = req.params
+  db(name).remove(query, function(err, count) {
+    count ? res.json({message:'ok'}) : res.status(403).send('没有权限操作')
+    // TODO: 当对象被删除时通过此连接通知所有在线终端
+  })
 })
 
-app.use('/:name/:id/file/', express.static('data/file'))
-app.get('/:name/:id/file/:aid', function(req, res, next) {
-  // 检查查询参数, 一般切割后的缩略图和原图格式不通
-  // 获得此对象的本体 /:name/:id/attach/xxxx.png
-})
-
-app.post('/:name/:id/file', function(req, res, next) {
+// 对象: 子级对象列表
+app.route('/:name/:id/:child').get(function(req, res, next) {
+  db(req.params.child).find({name:req.params.name, id:req.params.id}, function(err, docs) {
+    res.json(docs)
+  })
+}).post(function(req, res, next) {
   formidable({
     multiples: true,
     uploadDir: 'data/file',
@@ -205,41 +169,16 @@ app.post('/:name/:id/file', function(req, res, next) {
   })
 })
 
-app.post('/:name/:id/file/:aid', function(req, res, next) {
-  // 特别的操作?
-})
-
-app.delete('/:name/:id/file/:aid', function(req, res, next) {
-  // 先验证对象操作权限
-  // 此对象中是否包含此文件
-  // 此文件是否存在
-  // 移除此文件
-  db(req.params.name).findOne({_id:req.params.id}, function(err, doc) {
-    if (!doc) return res.status(404).send('对象不存在')
-    doc.list.forEach(item => {
-      // 使用 path 移除对象主体
-      if (req.params.aid === item.aid) {
-        db(req,params.name).update({_id:req.params.id}, {$pull:{file:item}}, {}, function(err, count, docs) {
-          console.log(count)
-        })
-      }
-    })
+// 对象: 子级对象实体
+app.route('/:name/:id/:child/:_id').get(function(req, res, next) {
+  db(req.params.child).findOne({name:req.params.name, id:req.params.id}, function(err, doc) {
+    doc ? res.json(doc) : res.status(404).send('对象不存在')
+  })
+}).delete(online, function(req, res, nuxt) {
+  let { child, query } = req.params
+  db.name(child).remove(query, function(err, count) {
+    count ? res.json('delete ok') : res.status(400).send('拒绝操作')
   })
 })
 
-
-// get    /:name/:id/xxxx.png
-// delete /:name/:id/xxxx.png
-
-// get    查询可以带参数, 可以切割图片
-// delete 命令不可带参数, 只操作对象实体
-
-// 一个请求分为三个过程
-// 1. 异步日志
-// 2. 请求运算
-// 3. 异步落盘
-// 4. 异步回执
-
-
 app.listen(2333)
-
