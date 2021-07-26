@@ -7,7 +7,6 @@ import random     from 'string-random'
 import formidable from 'formidable'
 import md5        from 'md5-node'
 
-
 process.on('SIGINT', function() {
   console.log('Got SIGINT.  Press Control-D/Control-C to exit.');
   process.exit(0);
@@ -57,6 +56,7 @@ const remove = function(req, res, next) {
 // 组件: 从缓存载入数据
 // 组件: 移除输出敏感信息
 
+const session_store = new NedbStore({filename: './data/db/session.db'})
 
 app.use(express.json())
 app.use(express.urlencoded({ extended: false }))
@@ -66,9 +66,8 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: { maxAge: 180 * 24 * 3600000 },
-  store: new NedbStore({filename: './data/db/session.db'}),
+  store: session_store,
 }))
-
 
 // 只允许管理权限访问
 app.use('/session', online, admin)
@@ -92,8 +91,96 @@ const list_load = async function(name, query) {
   }))
 }
 
+const count_user = async function(query) {
+  await new Promise(resolve => db('account').count(query, function(err, count) {
+    resolve(count)
+  }))
+}
+
+// 账户: 账户列表
+app.route('/account').get(online, function(req, res, next) {
+  // 账户列表 (列出所有账户并允许条件查询, 但移除敏感数据)
+  db('account').find({}, function(err, docs) {
+    res.json(docs)
+  })
+}).post(remove, online, async function(req,res, next) {
+  let {salt, password, email, code, gid, ...account} = req.body
+  if (password) {
+    account.salt = random(32)
+    account.password = md5(password + account.salt)
+  }
+  if (!account.name) account.name = random(12)       // 允许用户名登录则不可重复
+  if (!account.avatar) account.avatar = ''           // default avatar
+  if (await count_user({}) === 0) account.gid = 1    // 第一个用户默认是管理员
+  db('account').insert(account, function(err, doc) { // 注册账户
+    doc ? res.json(doc) : res.status(400).send('创建失败')
+  })
+}).patch(online, function(req, res, next) {
+  // 修改当前账户
+}).delete(online, function(req, res, next) {
+  // 注销当前账户 (将逐步删除所有库中此uid的数据)
+  if (req.session.account.gid === 1 && await count_user({gid: 1}) === 1) {
+    return res.status(400).send('不可以删除唯一的管理员账户')
+  }
+  // TODO: 注意需要清空所有库中此uid的记录
+})
+
+// 账户: 账户实体
+app.route('/account/:id').get(function(req, res, next) {
+  db('account').findOne({_id: req.params.id}, function(err, doc) {
+    if (!doc) return res.status(404).send('账户不存在')
+    if (req.session?.account?.uid != doc._id && req.session?.account?.gid != 1) {
+      delete doc.email
+      delete doc.mobile
+    }
+    delete doc.salt
+    delete doc.password
+    res.json(doc)
+  })
+}).delete(online, admin, function(req, res, next) {
+  if (req.session.account.gid !== 1 && req.session.account.uid !== req.params.id) {
+    return res.status(400).send('没有权限删除此账户')
+  }
+  if (await count_user({_id: req.params.id, gid: 1}) === 1) {
+    return res.status(400).send('不可以删除唯一的管理员账户')
+  }
+  db('account').remove({_id: req.params.id}, function(err, count) {
+    count ? res.send('删除成功') : res.status(500).send('删除失败')
+  })
+  // TODO: 管理员删除指定账户
+  // TODO: 注意需要清空所有库中此uid的记录
+})
+
+// 会话: 会话列表
+app.route('/session').get(function(req, res, next) {
+  // TODO: 读取会话列表 (当前有多少设备建立了多少会话)
+  // TODO: (管理员列出所有会话, 普通成员只列出自己的会话)
+  res.json(session_store.db.data)
+}).post(function(req, res, next) { // 创建登录会话 (sign in)
+  db('account').findOne({name: account.name}, function(err, doc) {
+    if (!doc) return res.status(400).send('账户不存在')
+    if (md5(doc.salt + password) != doc.password) return res.status(400).send('密码错误')
+    req.session.regenerate(function(err) {
+      req.session.account = { uid: doc._id, gid:doc.gid ?? 0 }
+      let { salt, password, ...user} = doc
+      res.json(user)
+    })
+  })
+}).delete(function(req, res, next) { // 注销当前登录会话 (sign out)
+  req.session.destroy(function(err) {
+    err ? res.status(500).send('错误') : res.json({message:"exit"})
+  })
+})
+
+// 会话: 会话实体
+app.route('/session/:id').get(function(req, res, next) {
+  // 获得指定会话信息
+}).delete(function(req, res, next) {
+  // 注销指定会话
+})
+
 // 对象: 对象列表
-app.route('/:name').get(function(req, res, next) {
+app.route('/:name').get(async function(req, res, next) {
   if (req.query.tid) req.query.tid = Number(req.query.tid) // 某些查询参数需要转换类型(暂时)
   if (req.query.top) req.query.top = Number(req.query.top) // 某些查询参数需要转换类型(暂时)
   if (req.query.uid || req.query.uid !== req.session?.account?.uid) {
@@ -105,8 +192,8 @@ app.route('/:name').get(function(req, res, next) {
 
   // 基于登录状态的查询, 查询点赞过的, 查询评论过的
   if (req.session?.account?.uid) {
-    if (like) query.$or = list_load('like',{name:req.params.name, uid:req.session.account.uid})
-    if (post) query.$or = list_load('post',{name:req.params.name, uid:req.session.account.uid})
+    if (like) query.$or = await list_load('like',{name:req.params.name, uid:req.session.account.uid})
+    if (post) query.$or = await list_load('post',{name:req.params.name, uid:req.session.account.uid})
   }
   db(req.params.name).find(query).skip(skip).limit(pagesize).sort({createdAt: -1}).exec(async function(err, docs) {
     for (let item of docs) {
@@ -131,6 +218,7 @@ app.route('/:name/:_id').get(function(req, res, next) {
     }
     // 附加用户信息
     if (req.query.user) doc.user = await user_load(doc.uid)
+    res.send(doc)
   })
 }).put(remove, online, function(req, res, next) {
   // TODO: 重写对象
