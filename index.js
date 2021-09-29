@@ -79,19 +79,42 @@ const user_load = async (_id) => await new Promise(resolve => accounts.findOne({
   return resolve(user)
 }))
 
+// 特定类型查询时参数特性: message
+const message = async function(req, res, next) {
+  if (req.query.unread) req.query.unread = (req.query.unread === 'true')
+  if (req.query.archive) req.query.archive = (req.query.archive === 'true')
+  if (req.query.to) {
+    delete req.query.to
+    req.query.from = req.session.account.uid
+  } else {
+    req.query.to = req.session.account.uid
+  }
+}
+
+// 标准列表
 const ListView = async function(req, res, next) {
   if (req.query.tid) req.query.tid = Number(req.query.tid) // 某些查询参数需要转换类型
   if (req.query.top) req.query.top = Number(req.query.top) // 某些查询参数需要转换类型
   if (req.query.uid || req.query.uid !== req.session?.account?.uid) {
     req.query.public = true // 如果查询条件限定为自己的, 则不用限制范围到公开的
   }
-  let { pagesize, page, like, post, ...query } = req.query
-  pagesize = Number(pagesize) || 20
-  let skip = ((Number(page) || 1) - 1) * pagesize
+  let { pagesize, page, count, like, post, ...query } = req.query
+  page = Number(page) || 1              // 默认页码1
+  pagesize = Number(pagesize) || 20     // 默认分页20
+  let skip = (page - 1) * pagesize      // 截取点
   // 基于登录状态的查询, 查询点赞过的, 查询评论过的
   if (req.session?.account?.uid) {
     if (like) query.$or = await list_load('like',{name:req.params.name, uid:req.session.account.uid})
     if (post) query.$or = await list_load('post',{name:req.params.name, uid:req.session.account.uid})
+  }
+  if (count) {
+    await new Promise(resolve => db(req.params.name).count(query, function(err, count) {
+      res.header('count', count)
+      res.header('page', page)
+      res.header('pages', Math.ceil(count/pagesize))
+      res.header('pagesize', pagesize)
+      resolve()
+    }))
   }
   db(req.params.name).find(query).skip(skip).limit(pagesize).sort({createdAt: -1}).exec(async function(err, docs) {
     for (let item of docs) {
@@ -125,16 +148,16 @@ const OneView = async function(req, res, next) {
 
 const object_create = async function(req, res, next) {
   if (req.session?.account?.gid != 1) {
-    delete req.body._id       // 普通用户禁止设置
-    delete req.body.uid       // 普通用户禁止设置
-    delete req.body.top       // 普通用户禁止设置
-    delete req.body.user      // 普通用户禁止设置
-    delete req.body.createdAt // 普通用户禁止设置
-    delete req.body.updatedAt // 普通用户禁止设置
-    delete req.body.views     // 普通用户禁止设置
-    delete req.body.posts     // 普通用户禁止设置
-    delete req.body.likes     // 普通用户禁止设置
-    delete req.body.files     // 普通用户禁止设置
+    delete req.body._id       // 普通用户禁止设置, 权限
+    delete req.body.uid       // 普通用户禁止设置, 权限
+    delete req.body.top       // 普通用户禁止设置, 权限
+    delete req.body.user      // 普通用户禁止设置, 计算
+    delete req.body.createdAt // 普通用户禁止设置, 自动
+    delete req.body.updatedAt // 普通用户禁止设置, 自动
+    delete req.body.views     // 普通用户禁止设置, 统计
+    delete req.body.posts     // 普通用户禁止设置, 统计
+    delete req.body.likes     // 普通用户禁止设置, 统计
+    delete req.body.files     // 普通用户禁止设置, 统计
   }
   if (!req.params.name) {
     req.body.name = req.body.name || random(12)                // 默认用户名
@@ -222,6 +245,10 @@ const profile = function(req, res) {
   })
 }
 
+// 当你需要指定权限 express-power
+// 权力与会话同级, 但不是每个会话都复制一份
+// 有限会话授权, 如果授权者权力过期, 需要向下传播, 即使用的仍旧是授权者所拥有的权柄
+
 app.use(express.json())
 app.use(express.urlencoded({ extended: false }))
 app.use(session({secret: 'shizukana', name:'sid', resave: false, saveUninitialized: false, cookie: { maxAge: 180 * 24 * 3600000 }, store: session_store}))
@@ -233,7 +260,7 @@ app.route('/session').get(online, session_list).post(session_create).delete(onli
 app.route('/session/:sid').delete(online, session_delete)                         // 会话
 app.route('/:name').get(ListView).post(online, object_create)                     // 列表
 app.route('/:name/:_id').get(OneView).put().patch().delete(online, object_remove) // 对象
-app.route('/:name/:_id/files').post(online, files_upload)
-app.route('/:name/:_id/files/:id').delete(online, files_delete)
+app.route('/:name/:_id/files').post(online, files_upload)                         // 附件
+app.route('/:name/:_id/files/:id').delete(online, files_delete)                   // 附件
 
 app.listen(2333)
