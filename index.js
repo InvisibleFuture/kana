@@ -73,7 +73,7 @@ const list_load = async (name, query) =>  await new Promise(resolve => db(name).
   return resolve(docs.Map((item, index) => Object.assign({}, {_id: item.id})))
 }))
 
-const user_load = async (_id) => await new Promise(resolve => accounts.findOne({_id}, function(err, doc) {
+const user_load = async (_id) => await new Promise(resolve => db('user').findOne({_id}, function(err, doc) {
   if (!doc) return resolve(doc)
   let { salt, password, mobile, email, ...user } = doc
   return resolve(user)
@@ -127,7 +127,7 @@ const ListView = async function(req, res, next) {
         item = user
       })
     }
-    if (req.params.user && item.uid && req.params.name !== 'user') docs.forEach(async item => {
+    if (req.params.user && req.params.name !== 'user') docs.forEach(async item => {
       item.user = await user_load(item.uid)
     })
     res.json(docs)
@@ -207,10 +207,11 @@ const files_upload = (req, res) => {
       let arr = Array.isArray(files[key]) ? files[key] : [files[key]]
       arr.forEach(({size, path, name, type}) => list.push({size, path, name, type}))
     }
-    db(req.params.name).update({_id:req.params._id}, {$addToSet: {file:list}}, {}, function (err, count, docs) {
-      if (!count) return res.status(404).send('目标挂载对象不存在')
-      res.send(docs)
-    })
+    res.json(list)
+    //db(req.params.name).update({_id:req.params._id}, {$addToSet: {file:list}}, {}, function (err, count, docs) {
+    //  if (!count) return res.status(404).send('目标挂载对象不存在')
+    //  res.send(docs)
+    //})
   })
 }
 
@@ -234,7 +235,6 @@ const object_remove = async function(req, res, next) {
 }
 
 // app.use('/like', online, admin)
-// app.use('/data/file/', express.static('data/file'))
 
 const profile = function(req, res) {
   return db('user').findOne({_id: req.session.account.uid}, function(err, doc) {
@@ -252,6 +252,7 @@ const profile = function(req, res) {
 app.use(express.json())
 app.use(express.urlencoded({ extended: false }))
 app.use(session({secret: 'shizukana', name:'sid', resave: false, saveUninitialized: false, cookie: { maxAge: 180 * 24 * 3600000 }, store: session_store}))
+app.use('/data/file/', express.static('data/file'))
 
 app.route('/').get(home)
 app.route('/user').post(object_create)
