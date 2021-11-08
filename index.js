@@ -93,15 +93,15 @@ const message = async function(req, res, next) {
 
 // 标准列表
 const ListView = async function(req, res, next) {
-  if (req.query.tid) req.query.tid = Number(req.query.tid) // 某些查询参数需要转换类型
-  if (req.query.top) req.query.top = Number(req.query.top) // 某些查询参数需要转换类型
-  if (req.query.uid || req.query.uid !== req.session?.account?.uid) {
-    req.query.public = true // 如果查询条件限定为自己的, 则不用限制范围到公开的
-  }
-  let { pagesize, page, count, like, post, ...query } = req.query
+  let { pagesize, page, count, like, post, tid, top, uid, user, ...query } = req.query
+  if (tid) query.tid = Number(tid) // 某些查询参数需要转换类型
+  if (top) query.top = Number(top) // 某些查询参数需要转换类型
+  if (uid && uid !== req.session?.account?.uid) query.public = true // 如果查询条件限定为自己的, 则不用限制范围到公开的
+
   page = Number(page) || 1              // 默认页码1
   pagesize = Number(pagesize) || 20     // 默认分页20
   let skip = (page - 1) * pagesize      // 截取点
+
   // 基于登录状态的查询, 查询点赞过的, 查询评论过的
   if (req.session?.account?.uid) {
     if (like) query.$or = await list_load('like',{name:req.params.name, uid:req.session.account.uid})
@@ -127,9 +127,9 @@ const ListView = async function(req, res, next) {
         item = user
       })
     }
-    if (req.params.user && req.params.name !== 'user') docs.forEach(async item => {
+    if (user && req.params.name !== 'user') for (let item of docs) {
       item.user = await user_load(item.uid)
-    })
+    }
     res.json(docs)
   })
 }
