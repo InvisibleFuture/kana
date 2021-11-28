@@ -19,7 +19,7 @@ Nodejs 构建的 RESTful 风格 WEB API
 ## Install
 ```bash
 # clone 到本地
-git clone ...
+git clone https://github.com/InvisibleFuture/kana.git
 
 # 切换到项目目录
 cd shizukana

@@ -1,9 +1,9 @@
 {
-  "name": "shizukana",
+  "name": "kana",
   "version": "1.0.0",
   "main": "index.js",
   "type": "module",
-  "repository": "git@github.com:InvisibleFuture/shizukana.git",
+  "repository": "git@github.com:InvisibleFuture/kana.git",
   "author": "satori <huan0016@gmail.com>",
   "license": "MIT",
   "dependencies": {
