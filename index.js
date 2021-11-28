@@ -52,46 +52,42 @@ const user_load = async (_id) => await new Promise(resolve => db('user').findOne
   return resolve(user)
 }))
 
-// 特定类型查询时参数特性: message
-const message = async function (req, res, next) {
-  if (req.query.unread) req.query.unread = (req.query.unread === 'true')
-  if (req.query.archive) req.query.archive = (req.query.archive === 'true')
-  if (req.query.to) {
-    delete req.query.to
-    req.query.from = req.session.account.uid
-  } else {
-    req.query.to = req.session.account.uid
-  }
+// 会话列表
+function session_list(req, res) {
+  return session_store.db.find({ "data.account.uid": req.session.account.uid }, function (err, docs) {
+    return err ? res.status(500).send('错误') : res.json(docs)
+  })
 }
 
-const session_list = (req, res) => session_store.db.find({ "data.account.uid": req.session.account.uid }, function (err, docs) {
-  err ? res.status(500).send('错误') : res.json(docs)
-})
-
-const session_create = (req, res) => db('user').findOne({ name: req.body.name }, function (err, doc) {
-  if (!doc) return res.status(400).send('账户不存在')
-  if (md5(req.body.password + doc.salt) !== doc.password) return res.status(400).send('密码错误')
-  req.session.regenerate(function (err) {
-    req.session.account = { uid: doc._id, gid: doc.gid ?? 0 }
-    let { salt, password, ...user } = doc
-    res.json(user)
+// 登录会话
+function session_create(req, res) {
+  return db('user').findOne({ name: req.body.name }, function (err, doc) {
+    if (!doc) return res.status(400).send('账户不存在')
+    if (md5(req.body.password + doc.salt) !== doc.password) return res.status(400).send('密码错误')
+    return req.session.regenerate(function (err) {
+      req.session.account = { uid: doc._id, gid: doc.gid ?? 0 }
+      let { salt, password, ...user } = doc
+      return res.json(user)
+    })
   })
-})
+}
 
-const sessionDeleteSelf = function (req, res) {
+// 注销会话 (当前会话)
+function sessionDeleteSelf(req, res) {
   return req.session.destroy(function (err) {
     return res.status(err ? 500 : 200).send(err ? '错误' : '退出登录')
   })
 }
 
-// TODO: 必须是自己的 UID
-const session_delete = (req, res) => req.sessionStore.destroy(req.params.sid, function (err) {
-  err ? res.status(500).send('错误') : res.send('退出登录')
-})
+// 注销会话 (指定会话)
+function session_delete(req, res) {
+  return req.sessionStore.destroy(req.params.sid, function (err) {
+    return err ? res.status(500).send('错误') : res.send('退出登录')
+  })
+}
 
-const home = (req, res) => res.send(`<DOCTYPE html><p> Hello World</p>`)
-
-const profile = function (req, res) {
+// 账户资料 (当前账户)
+function profile(req, res) {
   return db('user').findOne({ _id: req.session.account.uid }, function (err, doc) {
     if (err) return res.status(401).send('尚未登录')
     delete doc.salt
@@ -116,6 +112,12 @@ const object_list = async function (req, res) {
   if (req.session?.account?.uid) {
     if (like) query.$or = await list_load('like', { attach: req.params.name, uid: req.session.account.uid })
     if (post) query.$or = await list_load('post', { attach: req.params.name, uid: req.session.account.uid })
+  }
+
+  // 消息限定范围
+  if (req.params.name === 'message' && req.session.account.gid !== 1) {
+    if (query.to) query.to = req.session.account.uid  // 只能查发给自己的消息
+    else query.uid = req.session.account.uid          // 否则默认自己发出去的
   }
 
   // 要求附带统计信息
@@ -288,7 +290,7 @@ app.use(express.urlencoded({ extended: false }))
 app.use(session({ secret: 'shizukana', name: 'sid', resave: false, saveUninitialized: false, cookie: { maxAge: 180 * 24 * 3600000 }, store: session_store }))
 app.use('/data/file/', express.static('data/file'))
 
-app.route('/').get(home)
+app.route('/').get((req, res) => res.send(`<DOCTYPE html><p> Hello World</p>`))
 app.route('/user').post(object_create)
 app.route('/account').get(online, profile)
 app.route('/session').get(online, session_list).post(session_create).delete(online, sessionDeleteSelf)
