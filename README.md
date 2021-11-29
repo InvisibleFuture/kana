@@ -22,7 +22,7 @@ Nodejs 构建的 RESTful 风格 WEB API
 git clone https://github.com/InvisibleFuture/kana.git
 
 # 切换到项目目录
-cd shizukana
+cd kana
 
 # 使用 yarn 或 npm 安装依赖包
 yarn
@@ -59,8 +59,170 @@ RESTful 风格 API, URL形式为两段 name是对象类型, _id是对象id
 当程序在本地运行时, localhost:2333
 
 ```javascript
-fetch()
+fetch('/user', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        name: 'Kana',
+        password: '00000000'
+    }),
+}).then(Response => Response.json()).then(data => {
+  console.log(data)
+})
+
+// 返回账户信息
+{
+    _id: 'ApSXNLoUy',
+    name: 'Kana',
+    avatar: 'https://xxxx.xxx/xxx.png'
+}
 ```
+
+* 创建的第一个账户默认为管理员
+* 可以使用管理员权限设置其他账户为管理员
+* 默认并没有验证邮箱等检查步骤, 允许直接设置, 也允许用户重名
+
+
+
+#### 修改资料
+
+```javascript
+fetch('/user/ApSXNLoUy', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        name: 'Hana',
+        password: '11111111'
+    }),
+}).then(Response => Response.json()).then(data => {
+  console.log(data)
+})
+```
+
+* PATCH 时, 只发送要修改的字段(例如不需要修改用户名时, 发送的json不带name字段)
+
+
+
+#### 上传头像
+
+```html
+<!DOCTYPE html>
+<input type="file" name="photos", multiple, onchange="upload()"/>
+
+<script>
+function upload() {
+    let myForm = new FormData();
+    let files = document.querySelector("[type=file]").files;
+    files.map(item => myForm.append("photos", item))
+    fetch('/user/ApSXNLoUy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'multipart/form-data'},
+        body: myForm
+    }).then(Response => Response.json()).then(data => {
+        console.log(data)
+    })
+}
+</script>
+```
+
+```javascript
+fetch('/user/ApSXNLoUy', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        avatar: '/xxxx.jpg'
+    }),
+}).then(Response => Response.json()).then(data => {
+  console.log(data)
+})
+```
+
+
+
+#### 删除用户
+
+```javascript
+fetch('/user/ApSXNLoUy', {
+    method: 'DELETE',
+}).then(Response => Response.json()).then(data => {
+  console.log(data)
+})
+```
+
+
+
+#### 创建文章
+
+```javascript
+fetch('/book', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        name: 'Kana na na na',
+        data: 'xx x xx xx xxx xx'
+    }),
+}).then(Response => Response.json()).then(data => {
+  console.log(data)
+})
+
+// 返回文章信息
+{
+    _id: 'ppNXLoUK',
+    name: 'Kana na na na',
+    data: 'xx x xx xx xxx xx'
+}
+```
+
+
+
+#### 评论文章
+
+```javascript
+fetch('/post?attach=book&aid=ppNXLoUK', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        data: 'ahahahha~'
+    }),
+}).then(Response => Response.json()).then(data => {
+  console.log(data)
+})
+
+{
+    _id: 'spNkjLA',
+    data: 'ahahahha~'
+}
+```
+
+
+
+#### 点赞评论
+
+```javascript
+fetch('/like?attach=post&aid=spNkjLA', {
+    method: 'POST',
+}).then(Response => Response.json()).then(data => {
+  console.log(data)
+})
+
+{
+    _id: 'SOAPSAdaw'
+}
+```
+
+
+
+#### 取消点赞
+
+```javascript
+fetch('/like/SOAPSAdaw', {
+    method: 'DELETE',
+}).then(Response => Response.json()).then(data => {
+  console.log(data)
+})
+```
+
+
 
 
 
