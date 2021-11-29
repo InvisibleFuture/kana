@@ -31,7 +31,7 @@ yarn
 node index
 
 # 也可以使用 pm2 作守护进程
-pm2 start node --name shizukana -- index
+pm2 start node --name kana -- index
 ```
 
 
