@@ -79,7 +79,7 @@ const HUB = class {
 const FM = new HUB()
 
 // 通讯频道 Frequency Modulation
-function webscoketer(ws, req) {
+function websocketer(ws, req) {
 
   // 验证身份已经登录
   if (!req.session.account) return ws.close()
@@ -351,7 +351,7 @@ app.use(express.urlencoded({ extended: false }))
 app.use(session({ secret: 'kana', name: 'sid', resave: false, saveUninitialized: false, cookie: { maxAge: 180 * 24 * 3600000 }, store: session_store }))
 app.use('/data/file/', express.static('data/file'))
 
-app.ws('/ws', webscoketer)
+app.ws('/ws', websocketer)
 app.route('/').get((req, res) => res.send(`<DOCTYPE html><p> Hello World</p>`))
 app.route('/user').post(object_create)
 app.route('/account').get(online, profile)
