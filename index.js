@@ -224,6 +224,15 @@ const object_create = async function (req, res) {
 
   // 如果创建对象是用户作一些特殊处理
   if (req.params.name === 'user') {
+    if (!req.body.name) {
+      return res.status(400).send('用户名不能为空')
+    }
+    if (!req.body.password) {
+      return res.status(400).send('密码不能为空')
+    }
+    if (await count_load({ name: req.body.name })) {
+      return res.status(400).send('用户名已被占用')
+    }
     req.body.name = req.body.name || random(12)                // 默认用户名(检查用户名是否可用)
     req.body.avatar = req.body.avatar || ''                    // 默认用户头像
     req.body.gid = (await count_load('user', {})) ? 0 : 1      // 默认是管理员为首个注册用户
@@ -231,6 +240,7 @@ const object_create = async function (req, res) {
     req.body.password = md5(req.body.password + req.body.salt) // 必要设置密码
     req.body.public = true                                     // 默认公开
   } else {
+    if (!req.session.account) return res.status(401).send('需要登录')
     req.body.uid = req.session.account.uid                     // 为发表对象附上作者ID
     req.body.public = true                                     // 默认公开
     req.body.views = 0                                         // 再生计数
@@ -245,7 +255,12 @@ const object_create = async function (req, res) {
   // 写入对象
   return db(req.params.name).insert(req.body, async function (err, doc) {
     if (!doc) return res.status(500).send('创建失败')
-    if (req.params.name !== 'user') doc.user = await user_load(doc.uid)
+    if (req.params.name !== 'user') {
+      doc.user = await user_load(doc.uid)
+    } else {
+      delete doc.salt
+      delete doc.password
+    }
     return res.json(doc)
   })
 }
@@ -353,11 +368,11 @@ app.use('/data/file/', express.static('data/file'))
 
 app.ws('/', websocketer)
 app.route('/').get((req, res) => res.send(`<DOCTYPE html><p> Hello World</p>`))
-app.route('/user').post(object_create)
+//app.route('/user').post(object_create)
 app.route('/account').get(online, profile)
 app.route('/session').get(online, session_list).post(session_create).delete(online, sessionDeleteSelf)
 app.route('/session/:sid').delete(online, session_delete)
-app.route('/:name').get(object_list).post(online, object_create)
+app.route('/:name').get(object_list).post(object_create)
 app.route('/:name/:_id').get(object_load).post(online, file_upload).put().patch(online, object_patch).delete(online, object_remove)
 
 app.listen(2333)
