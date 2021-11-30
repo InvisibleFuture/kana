@@ -84,6 +84,77 @@ fetch('/user', {
 
 
 
+#### 登录会话
+
+```javascript
+fetch('/session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        name: 'Kana',
+        password: '00000000'
+    }),
+}).then(Response => Response.json()).then(data => {
+  console.log(data)
+})
+```
+
+
+
+#### 会话列表
+
+```javascript
+fetch('/session', {
+    method: 'GET',
+}).then(Response => Response.json()).then(data => {
+  console.log(data)
+})
+
+[
+    {
+        sid: 'xxxxxsid',
+        uid: 'xxxxxuid',
+    }
+]
+```
+
+
+
+
+
+#### 注销会话
+
+注销当前会话
+
+```javascript
+fetch('/session', {
+    method: 'DELETE',
+}).then(Response => Response.json()).then(data => {
+  console.log(data)
+})
+```
+
+
+
+注销指定会话
+
+```javascript
+fetch('/session/xxxxxsid', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        name: 'Kana',
+        password: '00000000'
+    }),
+}).then(Response => Response.json()).then(data => {
+  console.log(data)
+})
+```
+
+
+
+
+
 #### 修改资料
 
 ```javascript

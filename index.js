@@ -7,27 +7,14 @@ import random from 'string-random'
 import formidable from 'formidable'
 import md5 from 'md5-node'
 
-//process.on('SIGINT', function () {
-//  console.log('Got SIGINT.  Press Control-D/Control-C to exit.')
-//  process.exit(0)
-//})
-
 const app = expressWs(express()).app
 const databases = new Map() // 所有数据库
-//const wsstores = new Map() // 所有 websocket 连接
 
 const db = (name) => (databases.get(name) || function () {
   let database = new nedb({ filename: `./data/db/${name}.db`, autoload: true, timestampData: true })
   databases.set(name, database)
   return database
 }())
-
-// 通道: 自动构建 ws 列表
-// const wsstore = name => (wsstores.get(name) || function () {
-//   let list = new Map()
-//   wsstores.set(name, list)
-//   return list
-// }())
 
 const session_store = sessionDb(session, db('session'))
 
@@ -51,6 +38,80 @@ const user_load = async (_id) => await new Promise(resolve => db('user').findOne
   let { salt, password, mobile, email, ...user } = doc
   return resolve(user)
 }))
+
+const HUB = class {
+  constructor() {
+    this.频道 = new Map() // fid: [uid]
+    this.用户 = new Map() // uid: [ws]
+  }
+  增加会话(uid, ws) {
+    this.用户(uid).push(ws) // 必须验证是数组
+  }
+  增加频道(fid) {
+    this.频道.set(fid, [])
+  }
+  订阅频道(fid, uid) {
+    this.频道(fid).push(uid) // 必须验证是数组
+  }
+  取消订阅(fid, uid) {
+    this.频道(fid).filter(item => item != uid)
+  }
+  发送消息(fid, data) {
+    this.频道(fid).forEach(uid => {
+      this.用户(uid).forEach(ws => {
+        ws.send({ fm: fid, data })
+      })
+    })
+  }
+  移除会话(uid, ws) {
+    this.用户(uid).filter(item => item != ws)
+  }
+  移除频道(id) {
+    this.频道.delete(id)
+  }
+  移除用户(uid) {
+    this.频道.filter(item => item != uid)        // 取消用户所有订阅
+    this.用户.get(uid).forEach(ws => ws.close()) // 断开用户所有会话
+    this.用户.delete(uid)                        // 删除用户(所有会话)
+  }
+}
+
+const FM = new HUB()
+
+// 通讯频道 Frequency Modulation
+function webscoketer(ws, req) {
+
+  // 验证身份已经登录
+  if (!req.session.account) return ws.close()
+
+  // 将连接加入到列表
+  FM.增加会话(req.session.account.uid, ws)
+
+  // 当用户连接时, 读取其订阅列表
+  db('user').findOne({ uid: req.session.account.uid }, function (err, doc) {
+    if (doc && Array.isArray(doc.fm)) {
+      doc.fm.forEach(fid => FM.订阅频道(fid, req.session.account.uid))
+    }
+  })
+
+  // 收到消息时(只有频道消息)
+  ws.on('message', function (msg) {
+    // 可能需要检查权限, 是否可以向指定目标发送, 或者由客户端过滤
+    // 还需要在 data 中附带上发送者信息
+    let { fid, data } = msg
+    FM.发送消息(fid, data)
+  })
+
+  // 关闭连接时
+  ws.on('close', function (code) {
+    FM.移除会话(req.session.account.uid, ws)
+  })
+
+  // 发生错误时
+  ws.on('error', function (code) {
+    console.log('link error: ', code)
+  })
+}
 
 // 会话列表
 function session_list(req, res) {
