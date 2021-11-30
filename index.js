@@ -351,7 +351,7 @@ app.use(express.urlencoded({ extended: false }))
 app.use(session({ secret: 'kana', name: 'sid', resave: false, saveUninitialized: false, cookie: { maxAge: 180 * 24 * 3600000 }, store: session_store }))
 app.use('/data/file/', express.static('data/file'))
 
-app.ws('/ws', websocketer)
+app.ws('/', websocketer)
 app.route('/').get((req, res) => res.send(`<DOCTYPE html><p> Hello World</p>`))
 app.route('/user').post(object_create)
 app.route('/account').get(online, profile)

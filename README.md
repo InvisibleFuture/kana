@@ -297,6 +297,38 @@ fetch('/like/SOAPSAdaw', {
 
 
 
+#### 调频广播
+
+```javascript
+let socket = new WebSocket("ws://localhost:2333");
+
+socket.onopen = function(e) {
+  alert("[open] Connection established");
+  alert("Sending to server");
+  socket.send("My name is John");
+};
+
+socket.onmessage = function(event) {
+  alert(`[message] Data received from server: ${event.data}`);
+};
+
+socket.onclose = function(event) {
+  if (event.wasClean) {
+    alert(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
+  } else {
+    // e.g. server process killed or network down
+    // event.code is usually 1006 in this case
+    alert('[close] Connection died');
+  }
+};
+
+socket.onerror = function(error) {
+  alert(`[error] ${error.message}`);
+};
+```
+
+
+
 
 
 
@@ -323,50 +355,6 @@ fetch('/like/SOAPSAdaw', {
 - 查询列表时, 相同的查询条件有15s缓存
 - 如果查询公共的列表, 只返回状态为 pubilc的
 - 如果查询自己的列表, 则同时返回私有状态的
-
-
-
-查询示例:
-
-```javascript
-fetch('/book').then(Response => Response.json()).then(data => {
-  console.log(data)
-})
-
-// 返回结果
-[
-    {_id:'xxx', data:'xxxx'},
-    {_id:'xxx', data:'xxxx'}
-]
-```
-
-
-
-创建示例:
-
-```javascript
-fetc('/book', {
-    method: 'POST',
-    headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-        name: '创建一本新书',
-        data: '书的内容'
-    }),
-}).then(Response => Response.json()).then(data => {
-  console.log(data)
-})
-
-// 返回结果
-{
-    _id: 'xxx',
-    uid: 'xxx',
-    name: '创建一本新书',
-    data: '书的内容'
-}
-```
 
 
 
