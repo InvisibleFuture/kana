@@ -45,13 +45,13 @@ const HUB = class {
     this.用户 = new Map() // uid: [ws]
   }
   增加会话(uid, ws) {
-    this.用户(uid).push(ws) // 必须验证是数组
+    this.用户(uid) ? this.用户(uid).push(ws) : this.用户.set(uid, [ws])
   }
   增加频道(fid) {
     this.频道.set(fid, [])
   }
   订阅频道(fid, uid) {
-    this.频道(fid).push(uid) // 必须验证是数组
+    this.频道(fid) ? this.频道(fid).push(uid) : this.频道.set(fid, [uid])
   }
   取消订阅(fid, uid) {
     this.频道(fid).filter(item => item != uid)
@@ -351,6 +351,7 @@ app.use(express.urlencoded({ extended: false }))
 app.use(session({ secret: 'kana', name: 'sid', resave: false, saveUninitialized: false, cookie: { maxAge: 180 * 24 * 3600000 }, store: session_store }))
 app.use('/data/file/', express.static('data/file'))
 
+app.ws('/ws', webscoketer)
 app.route('/').get((req, res) => res.send(`<DOCTYPE html><p> Hello World</p>`))
 app.route('/user').post(object_create)
 app.route('/account').get(online, profile)
