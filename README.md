@@ -305,7 +305,9 @@ let socket = new WebSocket("ws://localhost:2333");
 socket.onopen = function(e) {
   alert("[open] Connection established");
   alert("Sending to server");
-  socket.send("My name is John");
+  
+  // 向 xxxx 频道发送消息, data内的格式由客户端约定
+  socket.send({fm:'xxxx', data:"My name is John"});
 };
 
 socket.onmessage = function(event) {
@@ -329,7 +331,24 @@ socket.onerror = function(error) {
 
 
 
+* 注意, 必须要在已经登录的状态下才能成功建立 websocket 连接, 因为消息分发服务是基于订阅模式的
+* 全局只需要使用一个连接, 订阅的频道消息都会通过这个连接传递
+* 当用户(多个终端)建立多个连接时, 每个终端都能收到推送消息
 
+
+
+```javascript
+{
+    fm: 'xxxxxxx',  // 频道
+    uid: 'xxxxxx',  // 来源用户ID, 如果是系统消息, 此项忽略
+    data: {}
+}
+```
+
+* 用户发送的消息, 格式由终端约定, 注意不符合约定的格式应直接丢弃
+* 可应用于聊天室, 系统通知, 实时公告, 协作, 消息盒子
+* 非用户消息时, uid可忽略
+* data为消息主体, 格式不受服务端控制, 可以为字符串,数字,对象,数组
 
 
 

@@ -56,10 +56,10 @@ const HUB = class {
   取消订阅(fid, uid) {
     this.频道(fid).filter(item => item != uid)
   }
-  发送消息(fid, data) {
-    this.频道(fid).forEach(uid => {
-      this.用户(uid).forEach(ws => {
-        ws.send({ fm: fid, data })
+  发送消息(fid, uid, data) {
+    this.频道(fid).forEach(userid => {
+      this.用户(userid).forEach(ws => {
+        ws.send({ fm: fid, uid, data })
       })
     })
   }
@@ -98,8 +98,8 @@ function websocketer(ws, req) {
   ws.on('message', function (msg) {
     // 可能需要检查权限, 是否可以向指定目标发送, 或者由客户端过滤
     // 还需要在 data 中附带上发送者信息
-    let { fid, data } = msg
-    FM.发送消息(fid, data)
+    let { fm, data } = msg
+    FM.发送消息(fm, req.session.account.uid, data)
   })
 
   // 关闭连接时
