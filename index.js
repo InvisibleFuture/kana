@@ -298,7 +298,7 @@ const object_load = function (req, res) {
   return db(req.params.name).findOne({ _id: req.params._id }, async function (err, doc) {
     if (!doc) return res.status(404).send('目标资源不存在')
     if (!doc.public && doc.uid !== session?.account?.uid) return res.status(403).send('没有权限读取')
-    db(req.params.name).update({ _id }, { $set: { views: doc.views ? doc.views + 1 : 1 } })
+    db(req.params.name).update({ _id: req.params._id }, { $set: { views: doc.views ? doc.views + 1 : 1 } })
     return res.status(200).json({ user: await user_load(doc.uid), ...doc })
   })
 }
