@@ -82,15 +82,18 @@ const FM = new HUB()
 function websocketer(ws, req) {
 
   // 验证身份已经登录
-  if (!req.session.account) return ws.close()
+  //if (!req.session.account) return ws.close()
+
+  // 游客使用公共账户 uid = 0
+  let uid = req.session?.account?.uid || 0
 
   // 将连接加入到列表
-  FM.增加会话(req.session.account.uid, ws)
+  FM.增加会话(uid, ws)
 
   // 当用户连接时, 读取其订阅列表
-  db('user').findOne({ uid: req.session.account.uid }, function (err, doc) {
+  db('user').findOne({ uid }, function (err, doc) {
     if (doc && Array.isArray(doc.fm)) {
-      doc.fm.forEach(fid => FM.订阅频道(fid, req.session.account.uid))
+      doc.fm.forEach(fid => FM.订阅频道(fid, uid))
     }
   })
 
@@ -99,12 +102,12 @@ function websocketer(ws, req) {
     // 可能需要检查权限, 是否可以向指定目标发送, 或者由客户端过滤
     // 还需要在 data 中附带上发送者信息
     let { fm, data } = msg
-    FM.发送消息(fm, req.session.account.uid, data)
+    FM.发送消息(fm, uid, data)
   })
 
   // 关闭连接时
   ws.on('close', function (code) {
-    FM.移除会话(req.session.account.uid, ws)
+    FM.移除会话(uid, ws)
   })
 
   // 发生错误时
