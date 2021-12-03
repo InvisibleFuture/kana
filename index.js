@@ -87,15 +87,21 @@ function websocketer(ws, req) {
   // 游客使用公共账户 uid = 0
   let uid = req.session?.account?.uid || 0
 
+  // 当游客连接时, 为其使用访客公共订阅列表
+  if (req.session.account) {
+    // 当用户连接时, 读取其订阅列表
+    db('user').findOne({ uid }, function (err, doc) {
+      if (doc && Array.isArray(doc.fm)) {
+        doc.fm.forEach(fid => FM.订阅频道(fid, uid))
+      }
+    })
+  } else {
+    // 访客默认订阅的频道列表: 一般是所有公开的频道
+    [].forEach(fid => FM.订阅频道(fid, uid))
+  }
+
   // 将连接加入到列表
   FM.增加会话(uid, ws)
-
-  // 当用户连接时, 读取其订阅列表
-  db('user').findOne({ uid }, function (err, doc) {
-    if (doc && Array.isArray(doc.fm)) {
-      doc.fm.forEach(fid => FM.订阅频道(fid, uid))
-    }
-  })
 
   // 收到消息时(只有频道消息)
   ws.on('message', function (msg) {
