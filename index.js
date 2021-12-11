@@ -94,6 +94,9 @@ function websocketer(ws, req) {
       if (doc && Array.isArray(doc.fm)) {
         doc.fm.forEach(fid => FM.订阅频道(fid, uid))
       }
+
+      // 管理员额外订阅数据频道
+      // 实时统计信号应另外接口连接
     })
   } else {
     // 访客默认订阅的频道列表: 一般是所有公开的频道
@@ -168,7 +171,7 @@ function profile(req, res) {
 
 // 列表对象
 const object_list = async function (req, res) {
-  let { pagesize, page, count, like, post, tid, top, uid, user, ...query } = req.query
+  let { pagesize, page, count, like, post, tid, top, uid, user, sort, desc, ...query } = req.query
 
   if (tid) query.tid = Number(tid)      // 某些查询参数需要转换类型
   if (top) query.top = Number(top)      // 某些查询参数需要转换类型
@@ -199,16 +202,27 @@ const object_list = async function (req, res) {
     resolve()
   }))
 
-  return db(req.params.name).find(query).skip(skip).limit(pagesize).sort({ createdAt: -1 }).exec(async function (err, docs) {
+  desc = (desc === "1") ? 1 : -1
+  let is_sort = {}
+  switch (sort) {
+    case 'top': is_sort.top = desc; break;
+    case 'hot': is_sort.hot = desc; break;
+    case 'createdAt': is_sort.createdAt = desc; break;
+    case 'updatedAt': is_sort.updatedAt = desc; break;
+    default:
+  }
+
+  return db(req.params.name).find(query).skip(skip).limit(pagesize).sort(sort).exec(async function (err, docs) {
     return res.json(await Promise.all(docs.map(async item => {
       item.posts = await count_load('post', { attach: req.params.name, aid: item._id }) // 附加评论数量
       item.likes = await count_load('like', { attach: req.params.name, aid: item._id }) // 附加点赞数量
-      item.user = await user_load(item.uid)                                             // 附加用户信息(user对象没有作者)
       if (req.params.name === 'user') {
         delete item.salt
         delete item.password
         delete item.mobile
         delete item.email
+      } else {
+        item.user = await user_load(item.uid)                                             // 附加用户信息(user对象没有作者)
       }
       return item
     })))
@@ -305,10 +319,23 @@ const object_remove = function (req, res) {
 // 读取对象
 const object_load = function (req, res) {
   return db(req.params.name).findOne({ _id: req.params._id }, async function (err, doc) {
-    if (!doc) return res.status(404).send('目标资源不存在')
-    if (!doc.public && doc.uid !== session?.account?.uid) return res.status(403).send('没有权限读取')
+    if (!doc) {
+      return res.status(404).send('目标资源不存在')
+    }
+    if (!doc.public && doc.uid !== session?.account?.uid) {
+      return res.status(403).send('没有权限读取')
+    }
+    if (req.params.name === 'user') {
+      delete doc.salt
+      delete doc.password
+      delete doc.mobile
+      delete doc.email
+    } else {
+      doc.user = await user_load(doc.uid)
+    }
     db(req.params.name).update({ _id: req.params._id }, { $set: { views: doc.views ? doc.views + 1 : 1 } })
-    return res.status(200).json({ user: await user_load(doc.uid), ...doc })
+    return res.json(doc)
+    //return res.json({ user: await user_load(doc.uid), ...doc })
   })
 }
 
@@ -318,29 +345,29 @@ const object_patch = function (req, res) {
     if (!doc) return res.status(404).send('目标对象不存在')
 
     // 如果是 user 做一些特殊处理
-    if (res.params.name === 'user') {
-      if (res.session.account.uid !== doc._id && res.session.account.gid !== 1) {
+    if (req.params.name === 'user') {
+      if (req.session.account.uid !== doc._id && req.session.account.gid !== 1) {
         return res.status(403).send('没有权限修改账户')
       }
-      if (res.body.gid && res.session.account.gid !== 1) {
+      if (req.body.gid && req.session.account.gid !== 1) {
         return res.status(403).send('没有权限修改权限')
       }
-      if (res.body.password) {
+      if (req.body.password) {
         req.body.salt = random(32)                                 // 密码加盐
-        res.body.password = md5(req.body.password + req.body.salt) // 设置密码
+        req.body.password = md5(req.body.password + req.body.salt) // 设置密码
       }
-      if (res.body.name) {
+      if (req.body.name) {
         // 检查用户名是否可用
       }
     } else {
-      if (res.session.account.uid !== doc.uid && res.session.account.gid !== 1) {
+      if (req.session.account.uid !== doc.uid && req.session.account.gid !== 1) {
         return res.status(403).send('没有权限修改对象')
       }
-      if (res.body.uid && res.session.account.gid !== 1) {
+      if (req.body.uid && req.session.account.gid !== 1) {
         return res.status(403).send('没有权限修改归属')
       }
     }
-    return db(req.params.name).update({ _id: req.params._id }, data, function (err, count) {
+    return db(req.params.name).update({ _id: req.params._id }, { $set: req.body }, function (err, count) {
       if (!count) return res.status(500).send('修改失败')
       return res.send('修改成功')
     })
@@ -370,6 +397,11 @@ const file_upload = function (req, res) {
   })
 }
 
+const db_compact = function (req, res) {
+  db(req.params.name).persistence.compactDatafile()
+  return res.send("ok")
+}
+
 app.use(express.json())
 app.use(express.urlencoded({ extended: false }))
 app.use(session({ secret: 'kana', name: 'sid', resave: false, saveUninitialized: false, cookie: { maxAge: 180 * 24 * 3600000 }, store: session_store }))
@@ -381,7 +413,7 @@ app.route('/').get((req, res) => res.send(`<DOCTYPE html><p> Hello World</p>`))
 app.route('/account').get(online, profile)
 app.route('/session').get(online, session_list).post(session_create).delete(online, sessionDeleteSelf)
 app.route('/session/:sid').delete(online, session_delete)
-app.route('/:name').get(object_list).post(object_create)
+app.route('/:name').get(object_list).post(object_create).put(db_compact)
 app.route('/:name/:_id').get(object_load).post(online, file_upload).put().patch(online, object_patch).delete(online, object_remove)
 
 app.listen(2333)
