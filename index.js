@@ -39,78 +39,42 @@ const user_load = async (_id) => await new Promise(resolve => db('user').findOne
   return resolve(user)
 }))
 
-const HUB = class {
-  constructor() {
-    this.频道 = new Map() // fid: [uid]
-    this.用户 = new Map() // uid: [ws]
-  }
-  增加会话(uid, ws) {
-    this.用户(uid) ? this.用户(uid).push(ws) : this.用户.set(uid, [ws])
-  }
-  增加频道(fid) {
-    this.频道.set(fid, [])
-  }
-  订阅频道(fid, uid) {
-    this.频道(fid) ? this.频道(fid).push(uid) : this.频道.set(fid, [uid])
-  }
-  取消订阅(fid, uid) {
-    this.频道(fid).filter(item => item != uid)
-  }
-  发送消息(fid, uid, data) {
-    this.频道(fid).forEach(userid => {
-      this.用户(userid).forEach(ws => {
-        ws.send({ fm: fid, uid, data })
-      })
-    })
-  }
-  移除会话(uid, ws) {
-    this.用户(uid).filter(item => item != ws)
-  }
-  移除频道(id) {
-    this.频道.delete(id)
-  }
-  移除用户(uid) {
-    this.频道.filter(item => item != uid)        // 取消用户所有订阅
-    this.用户.get(uid).forEach(ws => ws.close()) // 断开用户所有会话
-    this.用户.delete(uid)                        // 删除用户(所有会话)
-  }
-}
 
+import HUB from './fmhub.js'
 const FM = new HUB()
 
 // 通讯频道 Frequency Modulation
 function websocketer(ws, req) {
-
-  // 验证身份已经登录
-  //if (!req.session.account) return ws.close()
+  console.log("new websocket link T !")
 
   // 游客使用公共账户 uid = 0
-  let uid = req.session?.account?.uid || 0
+  let uid = req.session?.account?.uid || "0"
 
-  // 当游客连接时, 为其使用访客公共订阅列表
+  console.log(`用户 ${uid} 连接了服务器`)
+
+  // 访客默认订阅的频道列表: 一般是所有公开的频道
+  let list = ["chat", "system"]
+  list.forEach(fid => {
+    FM.订阅频道(fid, uid)
+  })
+
+  // 当用户连接时, 读取其订阅列表
   if (req.session.account) {
-    // 当用户连接时, 读取其订阅列表
     db('user').findOne({ uid }, function (err, doc) {
       if (doc && Array.isArray(doc.fm)) {
         doc.fm.forEach(fid => FM.订阅频道(fid, uid))
       }
-
-      // 管理员额外订阅数据频道
-      // 实时统计信号应另外接口连接
     })
-  } else {
-    // 访客默认订阅的频道列表: 一般是所有公开的频道
-    [].forEach(fid => FM.订阅频道(fid, uid))
   }
 
-  // 将连接加入到列表
+  // 将连接加入到列表 ws
   FM.增加会话(uid, ws)
 
   // 收到消息时(只有频道消息)
   ws.on('message', function (msg) {
     // 可能需要检查权限, 是否可以向指定目标发送, 或者由客户端过滤
     // 还需要在 data 中附带上发送者信息
-    let { fm, data } = msg
+    let { fm, data } = JSON.parse(msg)
     FM.发送消息(fm, uid, data)
   })
 
