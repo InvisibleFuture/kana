@@ -6,7 +6,7 @@ export default class {
   订阅频道(fid, uid) {
     console.log(`用户 ${uid} 订阅了 ${fid}`)
     let channel = this.channels.get(fid) || new Map()
-    if (!channel) this.channels.set(fid, channel)
+    if (!channel.size) this.channels.set(fid, channel)
     channel.set(uid, true)
   }
   取消订阅(fid, uid) {
@@ -19,7 +19,7 @@ export default class {
   增加会话(uid, ws) {
     console.log(`用户 ${uid} 建立了新的会话连接`)
     let user = this.users.get(uid) || new Map()
-    if (!user) this.users.set(uid, user)
+    if (!user.size) this.users.set(uid, user)
     user.set(ws, true)
   }
   移除会话(uid, ws) {
@@ -36,11 +36,11 @@ export default class {
     console.log("发送消息", fm, uid, data)
     let msg = JSON.stringify({ fm, uid, data })
     let channel = this.channels.get(fm) || new Map()
-    if (!channel) this.channels.set(fm, channel)
+    if (!channel.size) this.channels.set(fm, channel)
     channel.forEach((value, userid) => {
       console.log(userid, value)
       let user = this.users.get(userid)
-      if (!user) return console.log("订阅频道的用户不在线, 应移除此订阅");
+      if (!user.size) return console.log("订阅频道的用户不在线, 应移除此订阅");
       user.forEach((value, ws) => {
         ws.send(msg)
       })

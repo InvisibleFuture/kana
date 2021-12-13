@@ -65,7 +65,7 @@ function websocketer(ws, req) {
 
   // 收到消息时(只有频道消息)
   ws.on('message', function (msg) {
-    if (typeof (msg) === 'string') return console.log("消息不是字符串")
+    if (typeof (msg) !== "string") return console.log("消息不是字符串")
     let { fm, data } = JSON.parse(msg)
     FM.发送消息(fm, uid, data)
   })
