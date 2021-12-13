@@ -6,9 +6,11 @@ import sessionDb from 'express-session-nedb'
 import random from 'string-random'
 import formidable from 'formidable'
 import md5 from 'md5-node'
+import HUB from './fmhub.js'
 
 const app = expressWs(express()).app
 const databases = new Map() // 所有数据库
+const FM = new HUB()        // 频道消息分发器
 
 const db = (name) => (databases.get(name) || function () {
   let database = new nedb({ filename: `./data/db/${name}.db`, autoload: true, timestampData: true })
@@ -39,24 +41,15 @@ const user_load = async (_id) => await new Promise(resolve => db('user').findOne
   return resolve(user)
 }))
 
-
-import HUB from './fmhub.js'
-const FM = new HUB()
-
 // 通讯频道 Frequency Modulation
 function websocketer(ws, req) {
-  console.log("new websocket link T !")
-
   // 游客使用公共账户 uid = 0
   let uid = req.session?.account?.uid || "0"
-
   console.log(`用户 ${uid} 连接了服务器`)
 
   // 访客默认订阅的频道列表: 一般是所有公开的频道
   let list = ["chat", "system"]
-  list.forEach(fid => {
-    FM.订阅频道(fid, uid)
-  })
+  list.forEach(fid => FM.订阅频道(fid, uid))
 
   // 当用户连接时, 读取其订阅列表
   if (req.session.account) {
@@ -72,8 +65,7 @@ function websocketer(ws, req) {
 
   // 收到消息时(只有频道消息)
   ws.on('message', function (msg) {
-    // 可能需要检查权限, 是否可以向指定目标发送, 或者由客户端过滤
-    // 还需要在 data 中附带上发送者信息
+    if (typeof (msg) === 'string') return console.log("消息不是字符串")
     let { fm, data } = JSON.parse(msg)
     FM.发送消息(fm, uid, data)
   })
@@ -186,7 +178,7 @@ const object_list = async function (req, res) {
         delete item.mobile
         delete item.email
       } else {
-        item.user = await user_load(item.uid)                                             // 附加用户信息(user对象没有作者)
+        item.user = await user_load(item.uid) // 附加用户信息(user对象没有作者)
       }
       return item
     })))
@@ -271,7 +263,7 @@ const object_remove = function (req, res) {
       }
     }
 
-    // 处理掉一些附属对象
+    // TODO: 处理掉一些附属对象
 
     return db(req.params.name).remove({ _id: req.params._id }, function (err, count) {
       return count ? res.send('删除成功') : res.status(403).send('删除失败')
@@ -307,7 +299,6 @@ const object_load = function (req, res) {
 const object_patch = function (req, res) {
   return db(req.params.name).findOne({ _id: req.params._id }, function (err, doc) {
     if (!doc) return res.status(404).send('目标对象不存在')
-
     // 如果是 user 做一些特殊处理
     if (req.params.name === 'user') {
       if (req.session.account.uid !== doc._id && req.session.account.gid !== 1) {
@@ -370,14 +361,11 @@ app.use(express.json())
 app.use(express.urlencoded({ extended: false }))
 app.use(session({ secret: 'kana', name: 'sid', resave: false, saveUninitialized: false, cookie: { maxAge: 180 * 24 * 3600000 }, store: session_store }))
 app.use('/data/file/', express.static('data/file'))
-
 app.ws('/', websocketer)
 app.route('/').get((req, res) => res.send(`<DOCTYPE html><p> Hello World</p>`))
-//app.route('/user').post(object_create)
 app.route('/account').get(online, profile)
 app.route('/session').get(online, session_list).post(session_create).delete(online, sessionDeleteSelf)
 app.route('/session/:sid').delete(online, session_delete)
 app.route('/:name').get(object_list).post(object_create).put(db_compact)
 app.route('/:name/:_id').get(object_load).post(online, file_upload).put().patch(online, object_patch).delete(online, object_remove)
-
 app.listen(2333)

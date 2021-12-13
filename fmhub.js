@@ -24,7 +24,7 @@ export default class {
   }
   移除会话(uid, ws) {
     console.log(`用户 ${uid} 结束了当前会话连接`)
-    let user = this.users.get(uid)
+    let user = this.users.get(uid) || new Map()
     user.delete(ws)
     console.log(`此用户还剩 ${user.size} 个 ws 连接`)
     if (user.size < 1) {
