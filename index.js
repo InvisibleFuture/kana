@@ -118,8 +118,10 @@ function session_delete(req, res) {
 
 // 账户资料 (当前账户)
 function profile(req, res) {
+  if (!req.session.account) return res.json({ name: '游客', avatar: '', online: false })
   return db('user').findOne({ _id: req.session.account.uid }, function (err, doc) {
-    if (err) return res.status(401).send('尚未登录')
+    if (err) return res.status(400).send('账户不存在')
+    doc.online = true
     delete doc.salt
     delete doc.password
     return res.json(doc)
@@ -364,7 +366,7 @@ app.use(session({ secret: 'kana', name: 'sid', resave: false, saveUninitialized:
 app.use('/data/file/', express.static('data/file'))
 app.ws('/', websocketer)
 app.route('/').get((req, res) => res.send(`<DOCTYPE html><p> Hello World</p>`))
-app.route('/account').get(online, profile)
+app.route('/account').get(profile)
 app.route('/session').get(online, session_list).post(session_create).delete(online, sessionDeleteSelf)
 app.route('/session/:sid').delete(online, session_delete)
 app.route('/:name').get(object_list).post(object_create).put(db_compact)
