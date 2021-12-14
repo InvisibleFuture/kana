@@ -39,7 +39,7 @@ export default class {
     if (!channel.size) this.channels.set(fm, channel)
     channel.forEach((value, userid) => {
       console.log(userid, value)
-      let user = this.users.get(userid)
+      let user = this.users.get(userid) || new Map()
       if (!user.size) return console.log("订阅频道的用户不在线, 应移除此订阅");
       user.forEach((value, ws) => {
         ws.send(msg)
