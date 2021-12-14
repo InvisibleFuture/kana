@@ -30,6 +30,9 @@ export default class {
     if (user.size < 1) {
       console.log(`由于用户 ${uid} 已经没有会话, 直接移除此用户记录`)
       this.users.delete(uid)
+      this.channels.forEach((channel, fm) => {
+        channel.delete(uid)
+      })
     }
   }
   发送消息(fm, uid, data) {
@@ -38,7 +41,7 @@ export default class {
     let channel = this.channels.get(fm) || new Map()
     if (!channel.size) this.channels.set(fm, channel)
     channel.forEach((value, userid) => {
-      console.log(userid, value)
+      //console.log(userid, value)
       let user = this.users.get(userid) || new Map()
       if (!user.size) {
         console.log(user)
