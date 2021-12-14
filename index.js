@@ -248,7 +248,7 @@ const object_create = async function (req, res) {
 // 删除对象
 const object_remove = function (req, res) {
   return db(req.params.name).findOne({ _id: req.params._id }, async function (err, doc) {
-    if (doc) return res.status(404).send('目标对象不存在')
+    if (!doc) return res.status(404).send('目标对象不存在')
 
     // 如果是删除用户作一些特殊处理
     if (req.params.name === 'user') {
