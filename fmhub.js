@@ -30,6 +30,7 @@ export default class {
     if (user.size < 1) {
       console.log(`由于用户 ${uid} 已经没有会话, 直接移除此用户记录`)
       this.users.delete(uid)
+      // 理论上在会话结束后移除 (但为了避免反复遍历, 可以放在发送消息时)
       this.channels.forEach((channel, fm) => {
         channel.delete(uid)
       })
@@ -44,8 +45,10 @@ export default class {
       //console.log(userid, value)
       let user = this.users.get(userid) || new Map()
       if (!user.size) {
-        console.log(user)
         return console.log(`订阅频道的用户 ${userid} 没有会话连接, 应移除此订阅记录`);
+        //console.log(user, "在这里移除可能更安全点, 因为用户可能只是断线, 立即就会重连")
+        //console.log("但是, 就不能清除闲置频道占用")
+        //return channel.delete(userid)
       }
       user.forEach((value, ws) => {
         ws.send(msg)
