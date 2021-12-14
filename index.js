@@ -7,6 +7,7 @@ import random from 'string-random'
 import formidable from 'formidable'
 import md5 from 'md5-node'
 import HUB from './fmhub.js'
+import site from './collection.js'
 
 const app = expressWs(express()).app
 const databases = new Map() // 所有数据库
