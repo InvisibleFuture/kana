@@ -179,42 +179,26 @@ fetch('/user/ApSXNLoUy', {
 
 #### 上传头像
 
-实际分为两步,
-第一步先上传附件到自己的账户
-
 ```html
 <!DOCTYPE html>
-<input type="file" name="photos", multiple, onchange="upload()"/>
+<input type="file" name="photos", accept="image/*", multiple, onchange="upload($event)"/>
 
 <script>
-function upload() {
-    let myForm = new FormData();
-    let files = document.querySelector("[type=file]").files;
-    files.map(item => myForm.append("photos", item))
+function upload(event) {
+    let data = new FormData();
+    //let files = document.querySelector("[type=file]").files;
+    //files.map(item => data.append("photos", item))
+    data.append("img", event.target.files[0]);
     fetch('/user/ApSXNLoUy', {
         method: 'POST',
         headers: { 'Content-Type': 'multipart/form-data'},
-        body: myForm
+        body: data
     }).then(Response => Response.json()).then(data => {
         console.log(data)
     })
 }
 </script>
 ```
-
-第二步修改自己的头像路径为返回的图像路径, (!注意此处未作安全检查)
-```javascript
-fetch('/user/ApSXNLoUy', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-        avatar: '/xxxx.jpg'
-    }),
-}).then(Response => Response.json()).then(data => {
-  console.log(data)
-})
-```
-
 
 
 #### 删除用户

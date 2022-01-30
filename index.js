@@ -396,15 +396,16 @@ const uploadavatar = function (req, res) {
 
     if (!list[0]) return res.status(400).send('未获得图像')
 
+    let avatar = '/data/file/' + list[0].newFilename
     let query = { _id: req.session.account.uid }
     let data = {
-      $addToSet: { file: { $each: list } },                  // 保存记录
-      $set: { avatar: '/data/file/' + list[0].newFilename }, // 替换头像
+      $addToSet: { file: { $each: list } }, // 保存记录
+      $set: { avatar },                     // 替换头像
     }
 
     db('user').update(query, data, (err, count) => {
       if (!count) return res.status(500).send('附件挂载对象失败')
-      res.json(list[0]) // 返回唯一图像
+      res.json({ ...list[0], avatar }) // 返回唯一图像
     })
 
   })
