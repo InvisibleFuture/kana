@@ -7,9 +7,7 @@ import random from 'string-random'
 import formidable from 'formidable'
 import md5 from 'md5-node'
 import HUB from './fmhub.js'
-//import site from './collection.js'
 
-const app = expressWs(express()).app
 const databases = new Map() // 所有数据库
 const FM = new HUB()        // 频道消息分发器
 
@@ -228,6 +226,27 @@ const object_create = async function (req, res) {
     req.body.views = 0                                         // 再生计数
   }
 
+  // 如果包含标签
+  if (req.body.tags && Array.isArray(req.body.tags)) {
+    req.body.tags.forEach(item => {
+      // 先查询是否存在, 存在则使用返回的_id进行挂载, 不存在则创建新的
+      db('tag').findOne({ name: item }, function (err, doc) {
+        if (err && !doc) {
+          return // 创建新的
+        } else {
+          return // 使用这个 _id, 向它写入
+        }
+      })
+    })
+
+    // 是否可以创建一个复杂关系型数据库?
+    // 以应对映射的共同对象
+    // 例如在使用 tag 时, 向 idea 表的 tag 段读写, 即是 tag表的 idea 索引范围
+    // (自动构建和维护双向索引)
+    // 当删除此 idea 时, 也自动清理掉 tag 对 idea 的连接
+
+  }
+
   // 如果是挂载对象到指定目标
   if (req.body.attach && req.body.aid) {
     let count = await count_load(req.body.attach, { _id: req.body.aid })
@@ -244,6 +263,40 @@ const object_create = async function (req, res) {
       delete doc.password
     }
     return res.json(doc)
+  })
+}
+
+// 修改对象
+const object_patch = function (req, res) {
+  return db(req.params.name).findOne({ _id: req.params._id }, function (err, doc) {
+    if (!doc) return res.status(404).send('目标对象不存在')
+    // 如果是 user 做一些特殊处理
+    if (req.params.name === 'user') {
+      if (req.session.account.uid !== doc._id && req.session.account.gid !== 1) {
+        return res.status(403).send('没有权限修改账户')
+      }
+      if (req.body.gid && req.session.account.gid !== 1) {
+        return res.status(403).send('没有权限修改权限')
+      }
+      if (req.body.password) {
+        req.body.salt = random(32)                                 // 密码加盐
+        req.body.password = md5(req.body.password + req.body.salt) // 设置密码
+      }
+      if (req.body.name) {
+        // 检查用户名是否可用
+      }
+    } else {
+      if (req.session.account.uid !== doc.uid && req.session.account.gid !== 1) {
+        return res.status(403).send('没有权限修改对象')
+      }
+      if (req.body.uid && req.session.account.gid !== 1) {
+        return res.status(403).send('没有权限修改归属')
+      }
+    }
+    return db(req.params.name).update({ _id: req.params._id }, { $set: req.body }, function (err, count) {
+      if (!count) return res.status(500).send('修改失败')
+      return res.send('修改成功')
+    })
   })
 }
 
@@ -298,40 +351,6 @@ const object_load = function (req, res) {
   })
 }
 
-// 修改对象
-const object_patch = function (req, res) {
-  return db(req.params.name).findOne({ _id: req.params._id }, function (err, doc) {
-    if (!doc) return res.status(404).send('目标对象不存在')
-    // 如果是 user 做一些特殊处理
-    if (req.params.name === 'user') {
-      if (req.session.account.uid !== doc._id && req.session.account.gid !== 1) {
-        return res.status(403).send('没有权限修改账户')
-      }
-      if (req.body.gid && req.session.account.gid !== 1) {
-        return res.status(403).send('没有权限修改权限')
-      }
-      if (req.body.password) {
-        req.body.salt = random(32)                                 // 密码加盐
-        req.body.password = md5(req.body.password + req.body.salt) // 设置密码
-      }
-      if (req.body.name) {
-        // 检查用户名是否可用
-      }
-    } else {
-      if (req.session.account.uid !== doc.uid && req.session.account.gid !== 1) {
-        return res.status(403).send('没有权限修改对象')
-      }
-      if (req.body.uid && req.session.account.gid !== 1) {
-        return res.status(403).send('没有权限修改归属')
-      }
-    }
-    return db(req.params.name).update({ _id: req.params._id }, { $set: req.body }, function (err, count) {
-      if (!count) return res.status(500).send('修改失败')
-      return res.send('修改成功')
-    })
-  })
-}
-
 // 附件上传
 const file_upload = function (req, res) {
   return db(req.params.name).findOne({ _id: req.params._id }, function (err, doc) {
@@ -355,18 +374,55 @@ const file_upload = function (req, res) {
   })
 }
 
+// 头像上传
+const uploadavatar = function (req, res) {
+
+  let idable = formidable({
+    multiples: true,
+    uploadDir: 'data/file',
+    keepExtensions: true,
+    maxFieldsSize: 200 * 1024 * 1024,
+  })
+
+  idable.parse(req, (err, fields, files) => {
+
+    let list = []
+    for (let key in files) {
+      (Array.isArray(files[key]) ? files[key] : [files[key]]).map((data) => {
+        let { filepath, mimetype, newFilename, originalFilename, size } = data
+        list.push({ filepath, mimetype, newFilename, originalFilename, size })
+      })
+    }
+
+    if (!list[0]) return res.status(400).send('未获得图像')
+
+    let query = { _id: req.session.account.uid }
+    let data = {
+      $addToSet: { file: { $each: list } },                  // 保存记录
+      $set: { avatar: '/data/file/' + list[0].newFilename }, // 替换头像
+    }
+
+    db('user').update(query, data, (err, count) => {
+      if (!count) return res.status(500).send('附件挂载对象失败')
+      res.json(list[0]) // 返回唯一图像
+    })
+
+  })
+}
+
 const db_compact = function (req, res) {
   db(req.params.name).persistence.compactDatafile()
   return res.send("ok")
 }
 
+const app = expressWs(express()).app
 app.use(express.json())
 app.use(express.urlencoded({ extended: false }))
 app.use(session({ secret: 'kana', name: 'sid', resave: false, saveUninitialized: false, cookie: { maxAge: 180 * 24 * 3600000 }, store: session_store }))
 app.use('/data/file/', express.static('data/file'))
 app.ws('/', websocketer)
 app.route('/').get((req, res) => res.send(`<DOCTYPE html><p> Hello World</p>`))
-app.route('/account').get(profile)
+app.route('/account').get(profile).post(online, uploadavatar)
 app.route('/session').get(online, session_list).post(session_create).delete(online, sessionDeleteSelf)
 app.route('/session/:sid').delete(online, session_delete)
 app.route('/:name').get(object_list).post(object_create).put(db_compact)

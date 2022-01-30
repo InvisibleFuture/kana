@@ -39,12 +39,12 @@ pm2 start node --name kana -- index
 ## 特征
 
 
-
 `/:name/:_id`
 
-RESTful 风格 API, URL形式为两段 name是对象类型, _id是对象id
+RESTful 风格 API, url 形式为两段 name是对象类型, _id是对象id. (与 vue 的 router 类同)
 
-如发表一篇文章, 
+如发表一篇文章, 文章类型是 article, 文章 id 是 2333, 则 url为 `/article/2333`
+
 
 
 
@@ -78,13 +78,15 @@ fetch('/user', {
 }
 ```
 
-* 创建的第一个账户默认为管理员
+* 创建的第一个账户默认为管理员账户
 * 可以使用管理员权限设置其他账户为管理员
 * 默认并没有验证邮箱等检查步骤, 允许直接设置, 也允许用户重名
 
 
 
 #### 登录会话
+
+登录行为被认为是创建一个终端到服务器的会话. 因此不是使用 login 或 signin, 而是 session.
 
 ```javascript
 fetch('/session', {
@@ -103,6 +105,8 @@ fetch('/session', {
 
 #### 会话列表
 
+因此, 可以查看和管理自己所有的终端会话
+
 ```javascript
 fetch('/session', {
     method: 'GET',
@@ -120,12 +124,11 @@ fetch('/session', {
 
 
 
-
-
 #### 注销会话
 
-注销当前会话
+相应地, 退出行为被认为是删除一个终端到服务端的会话, 因此不使用 loguot 或 signout, 而是 session.
 
+注销当前会话
 ```javascript
 fetch('/session', {
     method: 'DELETE',
@@ -176,6 +179,9 @@ fetch('/user/ApSXNLoUy', {
 
 #### 上传头像
 
+实际分为两步,
+第一步先上传附件到自己的账户
+
 ```html
 <!DOCTYPE html>
 <input type="file" name="photos", multiple, onchange="upload()"/>
@@ -196,6 +202,7 @@ function upload() {
 </script>
 ```
 
+第二步修改自己的头像路径为返回的图像路径, (!注意此处未作安全检查)
 ```javascript
 fetch('/user/ApSXNLoUy', {
     method: 'PATCH',
@@ -212,6 +219,7 @@ fetch('/user/ApSXNLoUy', {
 
 #### 删除用户
 
+管理员可以直接删除指定用户, 普通用户可以删除自己
 ```javascript
 fetch('/user/ApSXNLoUy', {
     method: 'DELETE',
@@ -223,6 +231,8 @@ fetch('/user/ApSXNLoUy', {
 
 
 #### 创建文章
+
+此处 book 路径是未作限制的, 也可以是其他未被限制的路径.
 
 ```javascript
 fetch('/book', {
@@ -248,6 +258,11 @@ fetch('/book', {
 
 #### 评论文章
 
+这里假设文章类型是 book, 文章 id 是 ppNXLoUK
+
+attach 意为附属于指定对象类型
+aid 意为附属于指定对象 id
+
 ```javascript
 fetch('/post?attach=book&aid=ppNXLoUK', {
     method: 'POST',
@@ -265,9 +280,33 @@ fetch('/post?attach=book&aid=ppNXLoUK', {
 }
 ```
 
+#### 评论评论
+(二级评论)
+这里假设评论类型是 post, 评论 id 是 spNkjLA
+受益于评论的实现结构, 也可以对二级评论继续增加三级评论, 也可以无限深度
+
+```javascript
+fetch('/post?attach=post&aid=spNkjLA', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        data: 'yaaaaaaaaaa~'
+    }),
+}).then(Response => Response.json()).then(data => {
+  console.log(data)
+})
+
+{
+    _id: 'adjkasj',
+    data: 'ahahahha~'
+}
+```
+
 
 
 #### 点赞评论
+
+受益于评论的实现结构, 也可以对二级评论作点赞操作, 也可以对任意对象点赞操作
 
 ```javascript
 fetch('/like?attach=post&aid=spNkjLA', {
@@ -298,6 +337,9 @@ fetch('/like/SOAPSAdaw', {
 
 
 #### 调频广播
+
+通过频道订阅模式实现广播, 其中心思想是保障一个终端只维持一个 websocket 连接,
+所有消息都通过一个连接通道发送到终端, 如聊天室频道, 系统消息, 全局广播, 消息盒子通知等
 
 ```javascript
 let socket = new WebSocket("ws://localhost:2333");
@@ -355,7 +397,6 @@ socket.onerror = function(error) {
 #### 游客广播
 
 允许未登录会话加入订阅, 将未登录会话加入到游客账户
-
 因此不能再通过账户登录状态进行拦截
 
 
@@ -368,8 +409,8 @@ socket.onerror = function(error) {
 
 ```javascript
 {
-    page: Number,     // 当前页码(默认为1)
-    pagesize: Number, // 分页大小(默认20)
+  page: Number,     // 当前页码(默认为1)
+  pagesize: Number, // 分页大小(默认20)
 	sort: string,     // 排序方式(只能是对象的通用属性名)
 	desc: Number,     // 0或1, 正序和倒序
 	uid: string,      // 指定发布者uid查询
