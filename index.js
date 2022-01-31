@@ -36,8 +36,10 @@ const list_load = async (name, query) => await new Promise(resolve => db(name).f
 
 const user_load = async (_id) => await new Promise(resolve => db('user').findOne({ _id }, function (err, doc) {
   if (!doc) return resolve(doc)
-  let { salt, password, mobile, email, ...user } = doc
-  return resolve(user)
+  // let { salt, password, mobile, email, ...user } = doc
+  // 这里只应提取有限简略信息附给列表, 因为个人信息中可能含有大量私有字段
+  let { _id, gid, name, avatar } = doc
+  return resolve({ _id, gid, name, avatar })
 }))
 
 // 通讯频道 Frequency Modulation
