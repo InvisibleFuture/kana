@@ -22,8 +22,13 @@ const session_store = sessionDb(session, db('session'))
 // 登录验证
 const online = function (req, res, next) {
   if (!req.session.account) return res.status(401).send('未登录')
-  if (req.session.account.gid != 1) req.params.uid = req.session.account.uid
+  if (req.session.account.gid !== 1) req.params.uid = req.session.account.uid
   next()
+}
+
+// 权限(合并优化)
+const admin = function (account, item) {
+  return (account.gid === 1 || account.uid === item.uid)
 }
 
 // 列表计量
@@ -183,6 +188,13 @@ const object_list = async function (req, res) {
       } else {
         item.user = await user_load(item.uid) // 附加用户信息(user对象没有作者)
       }
+      if (req.params.name != 'user' && req.session.account) {
+        item.like = !!(await count_load('like', {
+          attach: req.params.name,
+          aid: item._id,
+          uid: req.session.account.uid
+        }))
+      }
       return item
     })))
   })
@@ -268,17 +280,25 @@ const object_create = async function (req, res) {
   })
 }
 
+//import memory from "./memory.js"
+//function object_patch(req, res, next) {
+//  let obj = new memory({ name: req.params.name, _id: req.params._id })
+//  return res.send(obj.PATCH({ account: req.session.account, data: req.body }))
+//}
+
 // 修改对象
-const object_patch = function (req, res) {
+function object_patch(req, res, next) {
   return db(req.params.name).findOne({ _id: req.params._id }, function (err, doc) {
     if (!doc) return res.status(404).send('目标对象不存在')
     // 如果是 user 做一些特殊处理
     if (req.params.name === 'user') {
-      if (req.session.account.uid !== doc._id && req.session.account.gid !== 1) {
-        return res.status(403).send('没有权限修改账户')
-      }
-      if (req.body.gid && req.session.account.gid !== 1) {
-        return res.status(403).send('没有权限修改权限')
+      if (req.session.account.gid !== 1) {
+        if (req.session.account.uid !== doc._id) {
+          return res.status(403).send('没有权限修改账户')
+        }
+        if (typeOf(req.body.gid) == "undefined") {
+          return res.status(403).send('没有权限修改权限')
+        }
       }
       if (req.body.password) {
         req.body.salt = random(32)                                 // 密码加盐
@@ -322,6 +342,7 @@ const object_remove = function (req, res) {
     }
 
     // TODO: 处理掉一些附属对象
+    // 似乎要遍历所有对象类型?
 
     return db(req.params.name).remove({ _id: req.params._id }, function (err, count) {
       return count ? res.send('删除成功') : res.status(403).send('删除失败')
