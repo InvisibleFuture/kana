@@ -10,6 +10,7 @@ import HUB from './fmhub.js'
 
 const databases = new Map() // 所有数据库
 const FM = new HUB()        // 频道消息分发器
+const messagelist = new Map() // 消息队列的nedb存储
 
 const db = (name) => (databases.get(name) || function () {
   let database = new nedb({ filename: `./data/db/${name}.db`, autoload: true, timestampData: true })
@@ -43,6 +44,7 @@ const user_load = async (_id) => await new Promise(resolve => db('user').findOne
   if (!doc) return resolve(doc)
   // let { salt, password, mobile, email, ...user } = doc
   // 这里只应提取有限简略信息附给列表, 因为个人信息中可能含有大量私有字段
+  // 但是..nedb 全在内存, 效率略略略...
   let { _id, gid, name, avatar } = doc
   return resolve({ _id, gid, name, avatar })
 }))
@@ -74,6 +76,10 @@ function websocketer(ws, req) {
     if (typeof (msg) !== "string") return console.log("消息不是字符串")
     let { fm, data } = JSON.parse(msg)
     FM.发送消息(fm, uid, data)
+    // 基于链表实现消息记录(对所有频道加入查询)
+    // ws收到的消息不一定是向频道推送, 还可能是消息查询(因为系统推送的消息也不一定是聊天室)
+    // 因而要为消息加上 id, 并为其附上双向链表字段, 使用 nedb 存储吗..
+    // 因此 格式为  { fm, id, direction: before||after,  }
   })
 
   // 关闭连接时
@@ -280,12 +286,6 @@ const object_create = async function (req, res) {
   })
 }
 
-//import memory from "./memory.js"
-//function object_patch(req, res, next) {
-//  let obj = new memory({ name: req.params.name, _id: req.params._id })
-//  return res.send(obj.PATCH({ account: req.session.account, data: req.body }))
-//}
-
 // 修改对象
 function object_patch(req, res, next) {
   return db(req.params.name).findOne({ _id: req.params._id }, function (err, doc) {
@@ -439,13 +439,32 @@ const db_compact = function (req, res) {
   return res.send("ok")
 }
 
+// 读取对象列表
+function index_get(req, res) {
+  // 返回对象列表
+  let list = []
+  databases.forEach((value, key) => {
+    list.push(key)
+  })
+  res.json(list)
+}
+
+// 锁定对象列表
+function index_patch(req, res) {
+  // 指定设定的目标类型
+}
+
+// 锁定后手动创建列表(管理员) {
+//  
+//}
+
 const app = expressWs(express()).app
 app.use(express.json())
 app.use(express.urlencoded({ extended: false }))
 app.use(session({ secret: 'kana', name: 'sid', resave: false, saveUninitialized: false, cookie: { maxAge: 180 * 24 * 3600000 }, store: session_store }))
 app.use('/data/file/', express.static('data/file'))
 app.ws('/', websocketer)
-app.route('/').get((req, res) => res.send(`<DOCTYPE html><p> Hello World</p>`))
+app.route('/').get(index_get)  // (req, res) => res.send(`<DOCTYPE html><p> Hello World</p>`)
 app.route('/account').get(profile).post(online, uploadavatar)
 app.route('/session').get(online, session_list).post(session_create).delete(online, sessionDeleteSelf)
 app.route('/session/:sid').delete(online, session_delete)

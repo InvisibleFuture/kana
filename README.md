@@ -293,14 +293,20 @@ fetch('/post?attach=post&aid=spNkjLA', {
 受益于评论的实现结构, 也可以对二级评论作点赞操作, 也可以对任意对象点赞操作
 
 ```javascript
-fetch('/like?attach=post&aid=spNkjLA', {
+fetch('/like', {
     method: 'POST',
+    body: JSON.stringify({
+      attach: "post",
+      aid: "spNkjLA"
+    }),
 }).then(Response => Response.json()).then(data => {
   console.log(data)
 })
 
 {
-    _id: 'SOAPSAdaw'
+    _id: 'SOAPSAdaw',
+    attach: "post",
+    aid: "spNkjLA"
 }
 ```
 
