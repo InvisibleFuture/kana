@@ -290,6 +290,9 @@ const object_create = async function (req, res) {
 function object_patch(req, res, next) {
   return db(req.params.name).findOne({ _id: req.params._id }, function (err, doc) {
     if (!doc) return res.status(404).send('目标对象不存在')
+    if (typeof (req.body.attach) !== "undefined") return res.status(403).send("无权限修改挂载目标")
+    if (typeof (req.body.aid) !== "undefined") return res.status(403).send("无权限修改挂载目标")
+
     // 如果是 user 做一些特殊处理
     if (req.params.name === 'user') {
       if (req.session.account.gid !== 1) {
