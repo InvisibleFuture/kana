@@ -49,48 +49,21 @@ const user_load = async (_id) => await new Promise(resolve => db('user').findOne
   return resolve({ _id, gid, name, avatar })
 }))
 
-// 通讯频道 Frequency Modulation
+// 通讯频道 Frequency Modulation, 游客使用公共账户 uid = 0
 function websocketer(ws, req) {
-  // 游客使用公共账户 uid = 0
   let uid = req.session?.account?.uid || "0"
   console.log(`用户 ${uid} 连接了服务器`)
 
-  // 访客默认订阅的频道列表: 一般是所有公开的频道
-  let list = ["chat", "system"]
-  list.forEach(fid => FM.订阅频道(fid, uid))
-
-  // 当用户连接时, 读取其订阅列表
-  if (req.session.account) {
-    db('user').findOne({ uid }, function (err, doc) {
-      if (doc && Array.isArray(doc.fm)) {
-        doc.fm.forEach(fid => FM.订阅频道(fid, uid))
-      }
-    })
-  }
-
-  // 将连接加入到列表 ws
+  //FM.加载订阅记录(uid)
   FM.增加会话(uid, ws)
 
-  // 收到消息时(只有频道消息)
   ws.on('message', function (msg) {
     if (typeof (msg) !== "string") return console.log("消息不是字符串")
     let { fm, data } = JSON.parse(msg)
     FM.发送消息(fm, uid, data)
-    // 基于链表实现消息记录(对所有频道加入查询)
-    // ws收到的消息不一定是向频道推送, 还可能是消息查询(因为系统推送的消息也不一定是聊天室)
-    // 因而要为消息加上 id, 并为其附上双向链表字段, 使用 nedb 存储吗..
-    // 因此 格式为  { fm, id, direction: before||after,  }
   })
-
-  // 关闭连接时
-  ws.on('close', function (code) {
-    FM.移除会话(uid, ws)
-  })
-
-  // 发生错误时
-  ws.on('error', function (code) {
-    console.log('link error: ', code)
-  })
+  ws.on('close', (code) => FM.移除会话(uid, ws))
+  ws.on('error', (code) => console.log('link error: ', code))
 }
 
 // 会话列表
@@ -320,10 +293,89 @@ function object_patch(req, res, next) {
     }
     return db(req.params.name).update({ _id: req.params._id }, { $set: req.body }, function (err, count) {
       if (!count) return res.status(500).send('修改失败')
-      return res.send('修改成功')
+
+      // 此处插入 hook
+      // 使用方法:
+      // kana.item(name || all).patch.
+      // kana.list(name || all).post
+
+      // 数据双向绑定
+      // 某个用户喜欢的主题
+      // 主题被哪些用户喜欢
+      // 当某个用户不再喜欢某个主题, 要双向解除绑定
+
+      // like: uid > [pid]
+      // like: pid > [uid]
+      // 修改立即存储为日志
+      // 逐期将日志合并
+
+      // attach
+      // thread > post
+      // thread < post
+      // thread 可以存储 [post]
+      // post 可以存储 [thread]
+      // 是直接的相互关联, 但数据众多且不在内存中
+      // hub的关联在内存中, 但也会向磁盘更新
+      // 时常剔除不被使用的, 每次使用使之存活时间增加
+      // 每次读取必然缓存一段时间, 而缓存时间由内存压力界定
+      // 维持命中率尽量高, 且在接近标准时, 逐渐剔除适合移除的
+      // 若是被跑内存呢..?
+      // 正常情况下数据的访问率如果都非常高, 则适宜加机器
+      // 如果异常情况, 则延迟跑内存ip访问速率
+
+      res.send('修改成功')
+
+      // 会话完全成功后执行
+      //if (typeof (msg) !== "string") return console.log("消息不是字符串")
+      //let { fm, data } = JSON.parse(msg)
+      // 此处需要向所有关注此 item 的用户发送消息, 因此还需要向上传递事件(如果这是一个附属对象)
+
+
+      // 构建消息内容(由于是作者或管理员修改, 因此不必通知修改者, 消息内容不必特意为修改者书写)
+
+
+      // 构建将要接受通知的用户队列, 需要去重, 所以使用 map
+      // 由于是作者或管理员修改, 因此不必通知修改者, 要将修改者的id特意从最终列表移出
+      let userlist = new Map()
+      let collect = () => {
+        userlist.set(doc.uid, true) // 先加入本对象作者
+        // 再加入上级关注者. (如果是附属)
+        if (doc.attach && doc.aid) { }
+
+        // 再加入下级关注者.(这似乎需要作双向绑定才行)
+        if (doc.attachR) {
+          // 有哪些类型附属?
+          // 每个类型有哪些对象实体?
+          // 此类调用涉及了似乎较为庞大的关系网, 当调用具体对象时, 如何不必对下级作全量查询呢?
+          // 在顶级加入结构表显然并不合适
+          // 下级格式:
+          // then > star {
+          //   userlist: {} // 只有系统维护的字段, 如果写入, 先转换到 map, 或是直接去重
+          // }
+          // 实际就是这个用户是否关注了这个对象, 如果关注了,
+          // 如何将上下级关系网中所有用户在不加载大量数据的情况下进行关注状态判定?
+          // 分离式: 与账户系统解耦, 方便随时分离和改变数据的存储形式
+          //
+          // 如果放了挂载点, 查询上下关联时也要分别读取上下的挂载点, 此时是否对上下也全部加载?
+        }
+      }
+
+      // 从待通知用户队列移除修改者id
+
+      // 执行发送消息
+      //let 发送消息 = () => {
+      //  FM.发送消息(fm, uid, data)    // 先通知本级关注者(作者)
+      //  if (doc.attach && doc.aid) { //再通知上级关注者()
+      //    return 发送消息()
+      //  }
+      //}
+
     })
   })
 }
+
+// 用户的 like 表 (map)
+// 当用户下线自动转换为冷数据, 从内存剔除
 
 // 删除对象
 const object_remove = function (req, res) {
