@@ -54,12 +54,11 @@ function websocketer(ws, req) {
   let uid = req.session?.account?.uid || "0"
   console.log(`用户 ${uid} 连接了服务器`)
 
-  //FM.加载订阅记录(uid)
   FM.增加会话(uid, ws)
 
   ws.on('message', function (msg) {
     if (typeof (msg) !== "string") return console.log("消息不是字符串")
-    let { fm, data } = JSON.parse(msg)
+    let { fm, data } = JSON.parse(msg) // 消息不是JSON
     FM.发送消息(fm, uid, data)
   })
   ws.on('close', (code) => FM.移除会话(uid, ws))
@@ -293,6 +292,31 @@ function object_patch(req, res, next) {
     }
     return db(req.params.name).update({ _id: req.params._id }, { $set: req.body }, function (err, count) {
       if (!count) return res.status(500).send('修改失败')
+
+      // 对象发生了修改, 收集通知用户
+      // 执行通知所有关注者
+
+      // 构建消息内容
+      let data = { name: req.params.name, _id: req.params._id }
+
+      // 如何加入订阅和取消订阅? 如何判断自己是否已经订阅?
+      // 关注了此对象的用户们(如果存在)
+      if (Array.isArray(doc.fm)) {
+        doc.fm.forEach(uid => {
+          FM.发送消息("PATCH", req.session.account.uid, data)
+          // 应当是向每个用户发送消息, 而不是向整个频道发送消息
+        })
+      }
+
+      // 这个范围过大, 应当是关注此对象的, 而不是关注 PATCH 频道的, 因此 PATCH 是此对象消息的内容
+      // 但直接使用对象ID与其它对象重复, 还需要标记对象类型..
+
+
+      // 对象发生了修改, 收集通知终端(也许需要另建一个注视状态绑定)
+      let 注视着此对象的终端们 = new Map()
+
+      // 如果已经关注, 则排除对注视终端的重复通知
+
 
       // 此处插入 hook
       // 使用方法:

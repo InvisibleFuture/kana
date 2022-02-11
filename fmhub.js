@@ -1,37 +1,9 @@
 import interrelated from './interrelated.js'
 import level from 'level'
-import fs from 'fs'
-import path from 'path'
-
-function getStat(path) {
-  return new Promise((resolve, reject) => {
-    fs.stat(path, (err, stats) => {
-      err ? resolve(false) : resolve(stats)
-    })
-  })
-}
-
-function mkdir(dir) {
-  return new Promise((resolve, reject) => {
-    fs.mkdir(dir, err => {
-      err ? resolve(false) : resolve(true)
-    })
-  })
-}
-
-async function dirExists(dir) {
-  let isExists = await getStat(dir)
-  if (isExists && isExists.isDirectory()) {
-    return true
-  } else if (isExists) {
-    return false
-  }
-  let status = await dirExists(path.parse(dir).dir)
-  return status ? await mkdir(dir) : null
-}
+import tools from './tools.js'
 
 // 检查并创建文件夹
-await dirExists('data/level')
+await tools.dirExists('data/level')
 
 // 初始化 leveldb
 const db = level("./data/level/fmhub")
@@ -47,10 +19,13 @@ const db = level("./data/level/fmhub")
 //  })
 //})
 
-export default class {
+// 订阅记录, 每个频道可能被多次订阅因而产生大量查询
+
+export default class fmhub {
   constructor() {
     this.用户订阅 = new interrelated()
     this.用户会话 = new interrelated()
+    this.终端注视 = new interrelated()
   }
 
   订阅频道(fid, uid) {
@@ -102,17 +77,17 @@ export default class {
     }
   }
 
-  发送消息(fm, uid, data) {
-    let msg = JSON.stringify({ fm, uid, data })
+  发送消息(频道, 来源UID, 数据) {
+    let msg = JSON.stringify({ fm: 频道, uid: 来源UID, data: 数据 })
     // 订阅列表中
     // A 是用户, 所以是 A 下 B 的集合
     // B 是频道, 向频道下所有用户的会话发送消息, 所以是 B下A的集合用于查询会话列表
     // 会话列表中:
     // A 是用户, 所以是 A 下 B 的 集合
     // B 是 WS, 向用户的每个 WS 发送消息
-    this.用户订阅.B中取A(fm, (uid) => {
+    this.用户订阅.B中取A(频道, (目标UID) => {
       //console.log(`用户 ${uid} 订阅过此频道`, fm)
-      this.用户会话.A中取B(uid, (ws) => {
+      this.用户会话.A中取B(目标UID, (ws) => {
         //console.log(`用户 ${uid} 的会话`)
         ws.send(msg)
       })
@@ -135,4 +110,9 @@ export default class {
       JSON.parse(value).forEach(item => this.用户订阅.关联数据(uid, item))
     })
   }
+
+  // FM 通道状态监听分为两种情况
+  // 1. 当前正在观看某一对象, 因此变更都推送(包括删除, 仅针对当前场景的会话)
+  // 2. 订阅此对象的变化, 触发关键变化时收到通知(不包括删除, 所有在线会话都收到推送)
+
 }
