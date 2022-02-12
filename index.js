@@ -230,13 +230,11 @@ const object_create = async function (req, res) {
         }
       })
     })
-
     // 是否可以创建一个复杂关系型数据库?
     // 以应对映射的共同对象
     // 例如在使用 tag 时, 向 idea 表的 tag 段读写, 即是 tag表的 idea 索引范围
     // (自动构建和维护双向索引)
     // 当删除此 idea 时, 也自动清理掉 tag 对 idea 的连接
-
   }
 
   // 如果是挂载对象到指定目标
@@ -313,8 +311,8 @@ function object_patch(req, res, next) {
 
 
       // 对象发生了修改, 收集通知终端(也许需要另建一个注视状态绑定)
-      let 注视着此对象的终端们 = new Map()
-
+      // let 注视着此对象的终端们 = new Map()
+      // 如果离开, 则通知
       // 如果已经关注, 则排除对注视终端的重复通知
 
 
@@ -385,7 +383,6 @@ function object_patch(req, res, next) {
       }
 
       // 从待通知用户队列移除修改者id
-
       // 执行发送消息
       //let 发送消息 = () => {
       //  FM.发送消息(fm, uid, data)    // 先通知本级关注者(作者)
@@ -393,7 +390,6 @@ function object_patch(req, res, next) {
       //    return 发送消息()
       //  }
       //}
-
     })
   })
 }
