@@ -25,7 +25,19 @@ export default class fmhub {
   constructor() {
     this.用户订阅 = new interrelated()
     this.用户会话 = new interrelated()
-    this.终端注视 = new interrelated()
+    this.终端注视 = new interrelated() // onlookers
+  }
+
+  围观作品(对象路径, 围观者会话) {
+    // 存储模式为 { key: ws, value: url}
+  }
+
+  变更作品(对象路径) {
+    // 直接通过 对象路径 查询所有在围观的会话, 然后推送通知
+    // 当终端改变了围观某个作品时, 通知修改围观对象
+    // 当终端结束了观看某个作品时. 要移除围观,
+    // 当终端断开连接时, 要移除围观
+    // 于是这也要一套关系绑定...
   }
 
   订阅频道(fid, uid) {
