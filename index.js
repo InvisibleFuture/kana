@@ -1,5 +1,5 @@
 import nedb from 'nedb'
-import express from 'express'
+import express, { query } from 'express'
 import expressWs from 'express-ws'
 import session from 'express-session'
 import sessionDb from 'express-session-nedb'
@@ -295,7 +295,7 @@ function object_patch(req, res, next) {
       // 执行通知所有关注者
 
       // 构建消息内容
-      let data = { name: req.params.name, _id: req.params._id }
+      //let data = { name: req.params.name, _id: req.params._id }
 
       // 如何加入订阅和取消订阅? 如何判断自己是否已经订阅?
       // 关注了此对象的用户们(如果存在)
@@ -478,8 +478,24 @@ const file_upload = function (req, res) {
   })
 }
 
-// 头像上传
-const uploadavatar = function (req, res) {
+const file_temp_list = new Map()
+
+const upload_file_temp = function (req, res) {
+  formidable({
+    multiples: true,
+    uploadDir: 'data/file',
+    keepExtensions: true,
+    maxFieldsSize: 200 * 1024 * 1024
+  }).parse(req, (err, fields, files) => {
+    let image = files['image']
+    if (image) (Array.isArray(image) ? image : [image]).forEach(item => {
+      file_temp_list.set(item.newFilename, item) // 每帧图像记录到临时表
+    })
+  })
+}
+
+// 向账户上传文件 (头像, 背景, 其它文件)
+const uploadfile = function (req, res) {
 
   let idable = formidable({
     multiples: true,
@@ -489,29 +505,37 @@ const uploadavatar = function (req, res) {
   })
 
   idable.parse(req, (err, fields, files) => {
+    let query = { _id: req.session.account.uid }
 
-    let list = []
-    for (let key in files) {
-      (Array.isArray(files[key]) ? files[key] : [files[key]]).map((data) => {
-        let { filepath, mimetype, newFilename, originalFilename, size } = data
-        list.push({ filepath, mimetype, newFilename, originalFilename, size })
+    // 针对特定对象处理上传字段(头像)
+    let avatar = files["avatar"]
+    if (avatar) {
+      let list = (Array.isArray(avatar) ? avatar : [avatar])
+      db('user').update(query, {
+        $addToSet: { file: { $each: list } },                  // 保存记录
+        $set: { avatar: '/data/file/' + list[0].newFilename }, // 替换头像
       })
     }
 
-    if (!list[0]) return res.status(400).send('未获得图像')
-
-    let avatar = '/data/file/' + list[0].newFilename
-    let query = { _id: req.session.account.uid }
-    let data = {
-      $addToSet: { file: { $each: list } }, // 保存记录
-      $set: { avatar },                     // 替换头像
+    // 针对特定对象处理上传字段(背景图)
+    let background = files["background"]
+    if (background) {
+      let list = (Array.isArray(background) ? background : [background])
+      db('user').update(query, {
+        $addToSet: { file: { $each: list } },                      // 保存记录
+        $set: { background: '/data/file/' + list[0].newFilename }, // 替换背景
+      })
     }
-
-    db('user').update(query, data, (err, count) => {
-      if (!count) return res.status(500).send('附件挂载对象失败')
-      res.json({ ...list[0], avatar }) // 返回唯一图像
-    })
-
+    //let list = []
+    //for (let key in files) {
+    //  console.log(key)
+    //  console.log(files[key].originalFilename)
+    //  //(Array.isArray(files[key]) ? files[key] : [files[key]]).map((data) => {
+    //  //  let { filepath, mimetype, newFilename, originalFilename, size } = data
+    //  //  list.push({ filepath, mimetype, newFilename, originalFilename, size })
+    //  //})
+    //}
+    res.json(files)
   })
 }
 
@@ -535,18 +559,14 @@ function index_patch(req, res) {
   // 指定设定的目标类型
 }
 
-// 锁定后手动创建列表(管理员) {
-//  
-//}
-
 const app = expressWs(express()).app
 app.use(express.json())
 app.use(express.urlencoded({ extended: false }))
 app.use(session({ secret: 'kana', name: 'sid', resave: false, saveUninitialized: false, cookie: { maxAge: 180 * 24 * 3600000 }, store: session_store }))
 app.use('/data/file/', express.static('data/file'))
 app.ws('/', websocketer)
-app.route('/').get(index_get)  // (req, res) => res.send(`<DOCTYPE html><p> Hello World</p>`)
-app.route('/account').get(profile).post(online, uploadavatar)
+app.route('/').get(index_get)
+app.route('/account').get(profile).post(online, uploadfile)
 app.route('/session').get(online, session_list).post(session_create).delete(online, sessionDeleteSelf)
 app.route('/session/:sid').delete(online, session_delete)
 app.route('/:name').get(object_list).post(object_create).put(db_compact)
