@@ -19,5 +19,9 @@
     "nedb": "^1.8.0",
     "request": "^2.88.2",
     "string-random": "^0.1.3"
+  },
+  "scripts": {
+    "dev": "node index",
+    "start": "node index"
   }
 }
