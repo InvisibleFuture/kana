@@ -1,11 +1,7 @@
-/**
- * Gravatar 头像缓存插件
- */
-
-import md5 from 'md5'
+import fs from 'fs'
 import path from 'path'
-import request from 'request'
-import { createWriteStream, existsSync, mkdirSync } from 'fs'
+import axios from 'axios'
+import crypto from 'crypto'
 
 const 镜像站列表 = [
   'gravatar.loli.net',    // loli.net
@@ -19,30 +15,30 @@ const 镜像站列表 = [
 
 var 头像来源 = 0
 
-function getGravatar(email, size) {
-  let str = email ? md5(email.toLowerCase()) : 'default'
+function getGravatar(email, size=128) {
+  let str = email ? crypto.createHash('md5').update(email.toLowerCase()).digest('hex') : 'default'
   let 本地路径 = './data/avatar/' + str + '.jpg'
   let 网络路径 = `https://${镜像站列表[头像来源]}/avatar/${str}.jpg?s=${size}&d=mm&r=g`
-  if (!existsSync(本地路径)) {
-    request(网络路径).on('error', function (err) {
+  if (!fs.existsSync(本地路径)) {
+    axios({ url:网络路径, responseType: 'arraybuffer' }).then(({data}) => {
+      fs.writeFileSync(本地路径, data, 'binary')
+    }).catch(error => {
       头像来源++
-      if (镜像站列表.length <= 头像来源) {
-        return console.log("下载头像失败, 使用默认头像")
-      }
-      getGravatar(email, size)
-    }).pipe(createWriteStream(本地路径))
+      console.log(error)
+      if (头像来源 <= 镜像站列表.length) getGravatar(email, size)
+      console.log("下载头像完毕")
+    })
   }
 }
 
-
 function 检查并创建目录(dirname) {
-  if (existsSync(dirname)) {
+  if (fs.existsSync(dirname)) {
     return true
   } else if (检查并创建目录(path.dirname(dirname))) {
-    mkdirSync(dirname)
+    fs.mkdirSync(dirname)
     return true
   }
-  return fasle
+  return false
 }
 
 export default {
@@ -59,3 +55,7 @@ export default {
   // 向头像获取方法插入替换
   getGravatar, // 获取头像(如果不存在自动从网络下载)
 }
+
+// test
+// 检查并创建目录('./data/avatar/')
+// getGravatar('huan0016@gmail.com', 128)
