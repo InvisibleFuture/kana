@@ -1,5 +1,5 @@
 import nedb from 'nedb'
-import express, { query } from 'express'
+import express from 'express'
 import expressWs from 'express-ws'
 import session from 'express-session'
 import sessionDb from 'express-session-nedb'
@@ -7,6 +7,7 @@ import random from 'string-random'
 import formidable from 'formidable'
 import md5 from 'md5-node'
 import HUB from './fmhub.js'
+
 
 const databases = new Map() // 所有数据库
 const FM = new HUB()        // 频道消息分发器

@@ -1,9 +1,20 @@
 import interrelated from './interrelated.js'
 import level from 'level'
-import tools from './tools.js'
+import path from 'path'
+import fs from 'fs'
 
 // 检查并创建文件夹
-await tools.dirExists('data/level')
+function 检查并创建目录(dirname) {
+  if (fs.existsSync(dirname)) {
+    return true
+  } else if (检查并创建目录(path.dirname(dirname))) {
+    fs.mkdirSync(dirname)
+    return true
+  }
+  return false
+}
+
+检查并创建目录('data/level')
 
 // 初始化 leveldb
 const db = level("./data/level/fmhub")

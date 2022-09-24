@@ -21,7 +21,7 @@
     "string-random": "^0.1.3"
   },
   "scripts": {
-    "dev": "node index",
-    "start": "node index"
+    "dev": "node index.js",
+    "start": "node index.js"
   }
 }
