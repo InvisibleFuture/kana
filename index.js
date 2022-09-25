@@ -73,11 +73,30 @@ function session_list(req, res) {
   })
 }
 
+import Cache from './cache.js'
+const cache = new Cache()
+
 // 登录会话
 function session_create(req, res) {
-  return db('user').findOne({ name: req.body.name }, function (err, doc) {
+  let { mobile, code, name, password } = req.body
+
+  // 也许使用验证码登录(临时验证码)  && code !== '000000'
+  if (mobile && code) {
+    if (code !== cache.get(mobile)) return res.status(400).send('验证码错误')
+    return db('user').findOne({ mobile }, function (err, doc) {
+      if (!doc) return res.status(400).send('账户不存在')
+      return req.session.regenerate(function (err) {
+        req.session.account = { uid: doc._id, gid: doc.gid ?? 0 }
+        let { salt, password, ...user } = doc
+        return res.json(user)
+      })
+    })
+  }
+  
+  // 也许使用账号密码登录
+  return db('user').findOne({ name }, function (err, doc) {
     if (!doc) return res.status(400).send('账户不存在')
-    if (md5(req.body.password + doc.salt) !== doc.password) return res.status(400).send('密码错误')
+    if (md5(password + doc.salt) !== doc.password) return res.status(400).send('密码错误')
     return req.session.regenerate(function (err) {
       req.session.account = { uid: doc._id, gid: doc.gid ?? 0 }
       let { salt, password, ...user } = doc
